@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
 #include <time.h>
+#include <ArduinoJson.h>
 #include <lvgl.h>
 #include "LGFX_ESP32_8048S070.h"
 
@@ -15,6 +17,9 @@ static lv_color_t buf2[240 * 40];
 static lv_obj_t *time_label;
 static lv_obj_t *date_label;
 static lv_obj_t *status_label;
+static lv_obj_t *dolar_label;
+
+static String dolarValue = "R$ --,--";
 
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
   uint32_t w = (area->x2 - area->x1 + 1);
@@ -57,6 +62,18 @@ void create_ui() {
   lv_obj_set_style_text_font(status_label, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(status_label, lv_color_hex(0x6C7086), 0);
   lv_obj_align(status_label, LV_ALIGN_BOTTOM_MID, 0, -20);
+
+  lv_obj_t *dolar_title = lv_label_create(lv_scr_act());
+  lv_label_set_text(dolar_title, "DOLAR");
+  lv_obj_set_style_text_font(dolar_title, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_color(dolar_title, lv_color_hex(0x6C7086), 0);
+  lv_obj_align(dolar_title, LV_ALIGN_CENTER, 0, -60);
+
+  dolar_label = lv_label_create(lv_scr_act());
+  lv_label_set_text(dolar_label, dolarValue.c_str());
+  lv_obj_set_style_text_font(dolar_label, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_color(dolar_label, lv_color_hex(0xA6E3A1), 0);
+  lv_obj_align(dolar_label, LV_ALIGN_CENTER, 0, -10);
 }
 
 void update_clock(lv_timer_t *timer) {
@@ -74,6 +91,32 @@ void update_clock(lv_timer_t *timer) {
     lv_label_set_text(time_label, timeStr);
     lv_label_set_text(date_label, dateStr);
   }
+}
+
+void update_dolar(lv_timer_t *timer) {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  HTTPClient http;
+  http.setTimeout(10000);
+  http.begin("https://economia.awesomeapi.com.br/json/last/USD-BRL");
+  int httpCode = http.GET();
+
+  if (httpCode == HTTP_CODE_OK) {
+    String payload = http.getString();
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err) {
+      const char *bid = doc["USDBRL"]["bid"];
+      dolarValue = String("R$ ") + bid;
+      lv_label_set_text(dolar_label, dolarValue.c_str());
+      Serial.println("Dolar: " + dolarValue);
+    } else {
+      Serial.println("Erro ao parsear JSON");
+    }
+  } else {
+    Serial.printf("Erro HTTP: %d\n", httpCode);
+  }
+  http.end();
 }
 
 void setup() {
@@ -131,6 +174,8 @@ void setup() {
   Serial.println("Tempo sincronizado!");
 
   lv_timer_create(update_clock, 1000, NULL);
+  lv_timer_create(update_dolar, 60000, NULL);
+  update_dolar(NULL);
 }
 
 void loop() {
