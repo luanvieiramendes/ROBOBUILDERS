@@ -3,10 +3,10 @@
 
 #define LV_COLOR_DEPTH 16
 #define LV_COLOR_16_SWAP 0
-#define LV_MEM_SIZE (48U * 1024U)
+#define LV_MEM_SIZE (96U * 1024U)
 #define LV_DPI_DEF 130
 #define LV_DRAW_COMPLEX 1
-#define LV_USE_LOG 1
+#define LV_USE_LOG 0
 #define LV_LOG_PRINTF 1
 
 #define LV_USE_THEME_DEFAULT 1
@@ -17,10 +17,14 @@
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_16 1
 #define LV_FONT_MONTSERRAT_20 1
+#define LV_FONT_MONTSERRAT_24 1
+#define LV_FONT_MONTSERRAT_32 1
 #define LV_FONT_MONTSERRAT_48 1
 
 #define LV_USE_BTN 1
 #define LV_USE_LABEL 1
+#define LV_USE_ARC 1
+#define LV_USE_LINE 1
 
 #define LV_USE_ANIMATION 1
 #define LV_USE_SHADOW 1
