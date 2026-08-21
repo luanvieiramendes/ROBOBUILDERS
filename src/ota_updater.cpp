@@ -11,12 +11,12 @@ static String normalizeVersion(String v){
   v.replace("v",""); v.replace("V",""); v.trim();
   return v;
 }
+
 static int versionToCode(String v){
-  // "1.2.3" -> 123
   v = normalizeVersion(v);
   int maj=0, min=0, pat=0;
   sscanf(v.c_str(), "%d.%d.%d", &maj, &min, &pat);
-  return maj*100 + min*10 + pat; // suporta até 9.9.9, bom para 1.1.0
+  return maj*100 + min*10 + pat;
 }
 
 String otaGetCurrentVersion(){ return String(FIRMWARE_VERSION); }
@@ -27,6 +27,55 @@ void otaInit(){
   Serial.printf("[OTA] versao atual %s (%d)\n", FIRMWARE_VERSION, FIRMWARE_VERSION_CODE);
 }
 
+// Fallback sem API: segue o redirect de /releases/latest e extrai a tag
+// Nao sofre rate limit de 60 req/h da api.github.com
+static bool checkViaRedirect(String &tagOut){
+  HTTPClient http;
+  http.setTimeout(10000);
+  http.addHeader("User-Agent", "ESP32-OTA");
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  String url = String("https://github.com/") + GITHUB_REPO + "/releases/latest";
+  http.begin(url);
+  int code = http.GET();
+  if(code == 301 || code == 302 || code == 303 || code == 307 || code == 308){
+    String loc = http.getLocation();
+    http.end();
+    int pos = loc.lastIndexOf("/tag/");
+    if(pos >= 0){
+      tagOut = loc.substring(pos + 5);
+      Serial.printf("[OTA] fallback redirect -> %s\n", tagOut.c_str());
+      return true;
+    }
+    gOta.error = "fallback: redirect sem /tag/";
+    Serial.println("[OTA] " + gOta.error + " loc=" + loc);
+    return false;
+  }
+  if(code == 200){
+    // pagina HTML com meta refresh ou link canonical
+    String body = http.getString();
+    http.end();
+    int i = body.indexOf("/releases/tag/");
+    if(i >= 0){
+      int start = i + strlen("/releases/tag/");
+      int endQ = body.indexOf('"', start);
+      int endS = body.indexOf('\'', start);
+      int end = (endQ >= 0 && (endS < 0 || endQ < endS)) ? endQ : endS;
+      if(end > start){
+        String path = body.substring(start, end);
+        tagOut = path.substring(path.lastIndexOf('/') + 1);
+        Serial.printf("[OTA] fallback html -> %s\n", tagOut.c_str());
+        return true;
+      }
+    }
+    gOta.error = "fallback: html sem tag";
+    return false;
+  }
+  http.end();
+  gOta.error = "fallback HTTP " + String(code);
+  Serial.println("[OTA] " + gOta.error);
+  return false;
+}
+
 bool otaCheck(bool showLog){
   if(WiFi.status()!=WL_CONNECTED){
     gOta.error = "WiFi desconectado";
@@ -35,62 +84,86 @@ bool otaCheck(bool showLog){
   }
   gOta.state = OTA_CHECKING;
   gOta.error = "";
+  gOta.downloadUrl = "";
   if(showLog) Serial.println("[OTA] verificando release mais recente...");
 
+  String tag = "";
+  bool gotTag = false;
+
+  // 1) Tentativa via API oficial
   HTTPClient http;
   http.setTimeout(10000);
   http.addHeader("User-Agent", "ESP32-OTA");
   http.addHeader("Accept", "application/vnd.github+json");
-  // GitHub API exige User-Agent
   http.begin(GITHUB_API_LATEST);
   int code = http.GET();
-  if(code != 200){
-    gOta.error = "HTTP " + String(code);
-    gOta.state = OTA_FAILED;
-    Serial.printf("[OTA] falha HTTP %d\n", code);
+  if(code == 200){
+    String payload = http.getString();
     http.end();
-    return false;
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if(err){
+      gOta.error = "JSON erro";
+      Serial.println("[OTA] JSON erro");
+    } else {
+      tag = doc["tag_name"] | "";
+      if(tag.length()){
+        gotTag = true;
+        JsonArray assets = doc["assets"];
+        for(JsonObject a : assets){
+          String name = a["name"] | "";
+          if(name.endsWith(".bin")){
+            gOta.downloadUrl = a["browser_download_url"] | "";
+            break;
+          }
+        }
+      } else {
+        gOta.error = "sem tag_name";
+      }
+    }
+  } else {
+    // loga o corpo para diagnosticar (rate limit, blocked, etc)
+    String body = http.getString();
+    http.end();
+    body.replace("\n", " ");
+    if(body.length() > 180) body = body.substring(0, 180);
+    Serial.printf("[OTA] API HTTP %d corpo: %s\n", code, body.c_str());
+    gOta.error = "API HTTP " + String(code) + ", tentando fallback";
   }
-  String payload = http.getString();
-  http.end();
-  JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, payload);
-  if(err){
-    gOta.error = "JSON erro";
-    gOta.state = OTA_FAILED;
-    return false;
-  }
-  String tag = doc["tag_name"] | "";
-  if(tag.length()==0){
-    gOta.error = "sem tag_name";
-    gOta.state = OTA_FAILED;
-    return false;
-  }
-  gOta.latest = normalizeVersion(tag);
-  // pega asset .bin (primeiro que termina com .bin)
-  String dl = "";
-  JsonArray assets = doc["assets"];
-  for(JsonObject a : assets){
-    String name = a["name"] | "";
-    if(name.endsWith(".bin")){
-      dl = a["browser_download_url"] | "";
-      break;
+
+  // 2) Fallback via redirect (sem rate limit)
+  if(!gotTag){
+    if(checkViaRedirect(tag)){
+      gotTag = true;
+      gOta.error = ""; // fallback funcionou, limpa erro da API
     }
   }
-  // fallback: usa url do zip? tenta pegar mesmo se não for bin
-  if(dl.length()==0 && assets.size()>0){
-    dl = assets[0]["browser_download_url"] | "";
+
+  if(!gotTag){
+    gOta.state = OTA_FAILED;
+    if(gOta.error.length()==0) gOta.error = "nenhum release encontrado";
+    Serial.printf("[OTA] falha: %s\n", gOta.error.c_str());
+    return false;
   }
-  gOta.downloadUrl = dl;
+
+  gOta.latest = normalizeVersion(tag);
+
+  // se a API nao deu a URL do asset, monta a padrao do Action
+  if(gOta.downloadUrl.length()==0){
+    gOta.downloadUrl = String("https://github.com/") + GITHUB_REPO +
+                       "/releases/download/" + tag + "/firmware-" + tag + ".bin";
+  }
+
   int latestCode = versionToCode(tag);
   int curCode = FIRMWARE_VERSION_CODE;
-  Serial.printf("[OTA] atual=%s (%d) latest=%s (%d) url=%s\n", gOta.current.c_str(), curCode, gOta.latest.c_str(), latestCode, dl.c_str());
-  if(latestCode > curCode && dl.length()>0){
-    gOta.state = OTA_NO_UPDATE; // na verdade tem update disponível
-    // marca como pronto para atualizar
+  Serial.printf("[OTA] atual=%s (%d) latest=%s (%d)\n", gOta.current.c_str(), curCode, gOta.latest.c_str(), latestCode);
+  Serial.printf("[OTA] url=%s\n", gOta.downloadUrl.c_str());
+
+  if(latestCode > curCode && gOta.downloadUrl.length()>0){
+    gOta.state = OTA_NO_UPDATE;
     gOta.error = "Atualizacao disponivel: " + tag;
     if(showLog) Serial.println("[OTA] " + gOta.error);
-    return true; // há atualização
+    return true;
   } else {
     gOta.state = OTA_NO_UPDATE;
     gOta.error = "Ja esta na ultima versao";
@@ -101,7 +174,7 @@ bool otaCheck(bool showLog){
 
 bool otaUpdate(){
   if(gOta.downloadUrl.length()==0){
-    gOta.error = "sem URL";
+    gOta.error = "sem URL, faca Verificar antes";
     gOta.state = OTA_FAILED;
     return false;
   }
@@ -117,9 +190,21 @@ bool otaUpdate(){
   http.setTimeout(20000);
   http.addHeader("User-Agent", "ESP32-OTA");
   http.begin(gOta.downloadUrl);
-  // GitHub redireciona, HTTPClient segue por padrão?
   http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
   int code = http.GET();
+
+  // fallback de nome de arquivo: firmware-latest.bin
+  if(code == 404){
+    http.end();
+    String alt = String("https://github.com/") + GITHUB_REPO +
+                 "/releases/download/v" + gOta.latest + "/firmware-latest.bin";
+    Serial.println("[OTA] 404, tentando " + alt);
+    http.begin(alt);
+    http.addHeader("User-Agent", "ESP32-OTA");
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    code = http.GET();
+  }
+
   if(code != 200){
     gOta.error = "download HTTP " + String(code);
     gOta.state = OTA_FAILED;
@@ -128,10 +213,6 @@ bool otaUpdate(){
     return false;
   }
   int len = http.getSize();
-  if(len <= 0){
-    // tenta com header Content-Length
-    len = http.getSize();
-  }
   Serial.printf("[OTA] tamanho %d\n", len);
   if(!Update.begin(len > 0 ? len : UPDATE_SIZE_UNKNOWN)){
     gOta.error = Update.errorString();
