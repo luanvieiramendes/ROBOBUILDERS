@@ -285,20 +285,37 @@ jobs:
   - `POST /api/ota/update` → `otaUpdate()` (envia `{"msg":"iniciando..."}` antes e dá `delay 200`)
 - `src/main.cpp:622` timers: `15s` após boot + `6h` periódico `otaCheck(true)` + timer `30s` loga se `latest > current`.
 
-### Como lançar OTA
+### Como lançar OTA (fluxo com tag — sempre `add` → `commit` → `push`)
+
+> **Regra:** `push` em `main` só gera `artifact` em `Actions` (preview `firmware-main.bin`). Para ir para `Releases` e o `ESP` atualizar via `OTA`, **tem que ser com `tag` `v*.*.*`**.
 
 ```bash
-# 1. edite src/version.h -> "1.2.0" 120
-# 2. commit
+# 1. bump versão no firmware (evita loop: tag deve ser > FIRMWARE_VERSION_CODE)
+# edite src/version.h:
+#   #define FIRMWARE_VERSION "1.2.0"
+#   #define FIRMWARE_VERSION_CODE 120  // 1.2.0 = 120
+
+# 2. sempre add + commit + push (obrigatório)
 git add src/version.h
 git commit -m "chore: bump 1.2.0"
-git push
-# 3. tag e push tag (dispara Release)
+git push origin main
+
+# 3. crie a tag que dispara o Release (mesma versão do passo 1)
 git tag v1.2.0
-git push origin v1.2.0
-# 4. aguarde Action verde em https://github.com/antony1727/ESTAGIO-/actions
-# 5. ESP em até 6h ou clique Verificar no WebServer → Atualizar agora → barra 0-100% → restart
+git push origin v1.2.0   # <-- este push cria o Release
+
+# 4. acompanhe: https://github.com/antony1727/ESTAGIO-/actions
+#    → workflow "Build and Release Firmware" verde
+#    → https://github.com/antony1727/ESTAGIO-/releases → firmware-v1.2.0.bin + firmware-latest.bin
+
+# 5. ESP busca automaticamente a cada 6h (ou 15s após boot)
+#    ou manual: WebServer → Sistema → OTA → 🔍 Verificar → ⬇️ Atualizar agora → barra 0-100% → restart auto
+#    Footer do display já mostra v1.2.0
 ```
+
+**Dica:** se esquecer o `push` da tag, o `.bin` fica só em `Actions → Artifacts` (30 dias) e **não** vai para `Releases`, o `OTA` não encontra. Sempre faça `git push origin vX.Y.Z` após `git tag`.
+
+Teste manual sem tag (só artifact): `git push origin main` → `Actions` → baixe `firmware-bin` → `curl -F file=@firmware.bin http://IP/update` (se implementar) ou grave via `COM5`.
 
 Teste manual: `curl -X POST http://192.168.1.57/api/ota/check` e `curl -X POST http://192.168.1.57/api/ota/update`.
 
