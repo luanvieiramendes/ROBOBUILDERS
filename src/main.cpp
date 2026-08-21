@@ -497,7 +497,10 @@ void update_weather(lv_timer_t *timer) {
 
 void setup() {
   Serial.begin(115200);
+  delay(500);
+  Serial.println("\n=== PAINEL FINANCEIRO boot ===");
   loadConfig();
+  Serial.printf("[WiFi] Config SSID='%s' PASS len=%d\n", gConfig.wifi_ssid, strlen(gConfig.wifi_pass));
 
   lv_init();
   tft.init();
@@ -528,12 +531,40 @@ void setup() {
   create_ui();
 
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  Serial.printf("[WiFi] Conectando em '%s' ...\n", gConfig.wifi_ssid);
   WiFi.begin(gConfig.wifi_ssid, gConfig.wifi_pass);
 
   unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
+  int dot=0;
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     lv_timer_handler();
+    if(millis()%1000<20){ Serial.print("."); dot++; if(dot%60==0) Serial.println(); }
     delay(10);
+  }
+  Serial.println();
+  Serial.printf("[WiFi] status=%d (%s)\n", WiFi.status(), WiFi.status()==WL_CONNECTED?"OK":"FALHA");
+  // Fallback: se falhou e nao era o padrao, tenta ROBOBUILDERS (rede do lab)
+  if(WiFi.status()!=WL_CONNECTED && String(gConfig.wifi_ssid) != "ROBOBUILDERS"){
+    Serial.println("[WiFi] Tentando fallback ROBOBUILDERS...");
+    WiFi.begin("ROBOBUILDERS", "luan123*");
+    start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+      lv_timer_handler();
+      delay(10);
+    }
+    Serial.printf("[WiFi] fallback status=%d\n", WiFi.status());
+    if(WiFi.status()==WL_CONNECTED){
+      Serial.println("[WiFi] Fallback OK! Mantendo ROBOBUILDERS como backup");
+    }
+  }
+  if(WiFi.status()!=WL_CONNECTED){
+    WiFi.printDiag(Serial);
+    Serial.println("[WiFi] Scan redes proximas:");
+    int n=WiFi.scanNetworks();
+    Serial.printf("[WiFi] %d redes encontradas\n", n);
+    for(int i=0;i<n && i<10;i++) Serial.printf("  %d: %s (%d dBm) %s\n",i,WiFi.SSID(i).c_str(),WiFi.RSSI(i),WiFi.encryptionType(i)==WIFI_AUTH_OPEN?"open":"wpa");
+    WiFi.scanDelete();
   }
 
  if (WiFi.status() == WL_CONNECTED) {
