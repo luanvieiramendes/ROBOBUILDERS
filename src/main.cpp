@@ -7,6 +7,8 @@
 #include "LGFX_ESP32_8048S070.h"
 #include "app_config.h"
 #include "web_server.h"
+#include "ota_updater.h"
+#include "version.h"
 
 LGFX tft;
 static lv_disp_draw_buf_t draw_buf;
@@ -373,8 +375,8 @@ void create_ui() {
   }
 
   lv_obj_t *footer = lv_label_create(scr);
-  char fbuf[64];
-  snprintf(fbuf,sizeof(fbuf),"Atualizado a cada %ds | %d moeda(s) | %s", gConfig.dolar_interval, cnt, gConfig.city);
+  char fbuf[80];
+  snprintf(fbuf,sizeof(fbuf),"Atualizado %ds | %d moeda(s) | %s | v%s", gConfig.dolar_interval, cnt, gConfig.city, FIRMWARE_VERSION);
   lv_label_set_text(footer, fbuf);
   lv_obj_set_style_text_font(footer, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(footer, colMuted, 0);
@@ -610,6 +612,26 @@ void setup() {
   lv_timer_create(update_weather, gConfig.weather_interval * 1000, NULL);
   update_dolar(NULL);
   update_weather(NULL);
+
+  // OTA auto
+  otaInit();
+  if(WiFi.status()==WL_CONNECTED){
+    // verifica 15s apos boot e a cada 6h
+    lv_timer_create([](lv_timer_t* t){ otaCheck(true); }, 15000, NULL);
+    lv_timer_create([](lv_timer_t* t){ otaCheck(true); }, 6*3600*1000, NULL);
+    // se houver update, baixa automaticamente (opcional: comentar para manual)
+    lv_timer_create([](lv_timer_t* t){
+      if(gOta.latest.length() && gOta.downloadUrl.length() && gOta.state==OTA_NO_UPDATE){
+        int cur = FIRMWARE_VERSION_CODE;
+        String tag = gOta.latest; tag.replace("v",""); int maj=0,min=0,pat=0; sscanf(tag.c_str(),"%d.%d.%d",&maj,&min,&pat); int latest = maj*100+min*10+pat;
+        if(latest > cur){
+          Serial.println("[OTA] auto update disponivel, aguardando comando web ou auto apos 30s");
+          // auto: descomente para atualizar sozinho
+          // otaUpdate();
+        }
+      }
+    }, 30000, NULL);
+  }
 }
 
 void loop() {

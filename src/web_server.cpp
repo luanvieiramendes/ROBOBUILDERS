@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include "LGFX_ESP32_8048S070.h"
+#include "ota_updater.h"
+#include "version.h"
 
 extern LGFX tft;
 extern String dolarValue;
@@ -146,7 +148,17 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 
 <div id="tab-sistema" class="grid hidden">
  <div class="card accent"><h2>TELA</h2><label>Brilho <span id="bv" style="float:right;color:var(--accent)"></span><input id="bright" type="range" min="10" max="255"></label><div style="height:10px;background:#0F1622;border-radius:999px;overflow:hidden;margin-top:6px"><div id="brightBar" style="height:100%;background:var(--accent);width:50%"></div></div><label>Fuso</label><select id="tz"><option value="-5">-5 Acre</option><option value="-4">-4 Manaus</option><option value="-3" selected>-3 Brasília</option><option value="-2">-2 Fernando</option></select></div>
- <div class="card"><h2>APARÊNCIA</h2><div class="row"><button class="btn-dark" onclick="setTheme('dark')">🌙 Noturno</button><button class="btn-dark" onclick="setTheme('light')">☀️ Claro</button></div><small style="color:var(--muted)">Alterna site e espelhamento. Salvo no navegador.</small></div>
+ <div class="card"><h2>APARÊNCIA</h2><div class="row"><button class="btn-dark" onclick="setTheme('dark')">🌙 Noturno</button><button class="btn-dark" onclick="setTheme('light')">☀️ Claro</button></div><small style="color:var(--muted)">Alterna site e espelhamento. Salvo no navegador. ESP segue: <span id="espTheme">--</span></small></div>
+ <div class="card green" id="otaCard">
+  <h2>ATUALIZAÇÃO OTA (GitHub Releases)</h2>
+  <div class="kv"><span>Versão atual</span><b id="otaCur">--</b></div>
+  <div class="kv"><span>Última no GitHub</span><b id="otaLatest">--</b></div>
+  <div class="kv"><span>Status</span><b id="otaStatus">--</b></div>
+  <div style="height:8px;background:#0F1622;border-radius:999px;overflow:hidden;margin:8px 0"><div id="otaBar" style="height:100%;background:var(--green);width:0%"></div></div>
+  <div id="otaMsg" style="font-size:11px;color:var(--muted);min-height:16px"></div>
+  <div class="row"><button class="btn-dark" onclick="otaCheck()">🔍 Verificar</button><button class="btn-green" onclick="otaUpdate()">⬇️ Atualizar agora</button></div>
+  <small style="color:var(--muted)">Auto a cada 6h. Bin gerado por Action em <code>antony1727/ESTAGIO-</code> tag <code>v*.*.*</code></small>
+ </div>
  <div class="card">
   <h2>WIFI - REDES PRÓXIMAS (sem digitar SSID)</h2>
   <button class="btn-dark" onclick="scanWifi()">🔍 Buscar redes próximas</button>
@@ -328,7 +340,10 @@ document.getElementById('cityInput').addEventListener('input',filtrarCidades);
 document.getElementById('citySel').addEventListener('dblclick',usarCidadeSelecionada);
 document.getElementById('bright').addEventListener('input',e=>{document.getElementById('bv').innerText=e.target.value; document.getElementById('brightBar').style.width=(e.target.value/255*100)+'%';});
 let t; document.getElementById('bright').addEventListener('change',e=>{clearTimeout(t); t=setTimeout(()=>fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bright:parseInt(e.target.value)})}).then(()=>toast('Brilho '+e.target.value)),400)});
-fillPairs(); fillCaps(); loadUFs(); loadConfig(); loadData(); setInterval(loadData,5000);
+async function loadOta(){try{let r=await fetch('/api/version'); let j=await r.json(); document.getElementById('otaCur').textContent=j.current; document.getElementById('otaLatest').textContent=j.latest||'--'; let states=['ocioso','verificando','sem update','atualizando','sucesso','falha']; document.getElementById('otaStatus').textContent=states[j.state]||j.state; document.getElementById('otaMsg').textContent=j.error||''; document.getElementById('otaBar').style.width=j.progress+'%'; let et=document.getElementById('espTheme'); if(et) et.textContent=j.dlight?'claro':'noturno';}catch(e){}}
+async function otaCheck(){let r=await fetch('/api/ota/check',{method:'POST'}); let j=await r.json(); toast(j.msg||j.error, j.state!==5); loadOta();}
+async function otaUpdate(){if(!confirm('Atualizar para '+document.getElementById('otaLatest').textContent+'? Nao desligue!')) return; toast('Baixando e gravando...'); let r=await fetch('/api/ota/update',{method:'POST'}); let j=await r.json(); toast(j.msg, j.ok); loadOta();}
+fillPairs(); fillCaps(); loadUFs(); loadConfig(); loadData(); loadOta(); setInterval(loadData,5000); setInterval(loadOta,10000);
 </script>
 </body>
 </html>
@@ -471,6 +486,36 @@ void handleScan() {
   WiFi.scanDelete();
 }
 
+void handleVersion() {
+  JsonDocument doc;
+  doc["current"] = FIRMWARE_VERSION;
+  doc["latest"] = gOta.latest;
+  doc["state"] = (int)gOta.state;
+  doc["progress"] = gOta.progress;
+  doc["error"] = gOta.error;
+  doc["url"] = gOta.downloadUrl;
+  doc["dlight"] = gConfig.display_light;
+  String out; serializeJson(doc,out);
+  webServer.send(200,"application/json",out);
+}
+void handleOtaCheck() {
+  bool has = otaCheck(true);
+  JsonDocument doc;
+  doc["hasUpdate"] = has;
+  doc["latest"] = gOta.latest;
+  doc["current"] = gOta.current;
+  doc["msg"] = gOta.error;
+  doc["state"] = (int)gOta.state;
+  String out; serializeJson(doc,out);
+  webServer.send(200,"application/json",out);
+}
+void handleOtaUpdate() {
+  // inicia em background para nao travar resposta
+  webServer.send(200,"application/json","{\"msg\":\"iniciando OTA, aguarde...\",\"ok\":true}");
+  delay(200);
+  otaUpdate();
+}
+
 void handleRestart() {
   webServer.send(200, "application/json", "{\"msg\":\"reiniciando...\"}");
   delay(500);
@@ -487,6 +532,9 @@ void webServerInit() {
   webServer.on("/api/config", HTTP_POST, handlePostConfig);
   webServer.on("/api/data", HTTP_GET, handleGetData);
   webServer.on("/api/scan", HTTP_GET, handleScan);
+  webServer.on("/api/version", HTTP_GET, handleVersion);
+  webServer.on("/api/ota/check", HTTP_POST, handleOtaCheck);
+  webServer.on("/api/ota/update", HTTP_POST, handleOtaUpdate);
   webServer.on("/api/restart", HTTP_POST, handleRestart);
   webServer.onNotFound(handleNotFound);
   webServer.begin();
