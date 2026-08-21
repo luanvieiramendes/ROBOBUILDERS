@@ -22,13 +22,13 @@ static lv_obj_t *weather_temp_label;
 static lv_obj_t *weather_desc_label;
 static lv_obj_t *weather_city_label;
 
-// Suporte a até 3 moedas dinâmicas
-static lv_obj_t *moeda_cards[3] = {nullptr,nullptr,nullptr};
-static lv_obj_t *moeda_pair_labels[3] = {nullptr,nullptr,nullptr};
-static lv_obj_t *moeda_value_labels[3] = {nullptr,nullptr,nullptr};
+// Suporte a até 6 moedas - metade da tela em 2 linhas se >3
+static lv_obj_t *moeda_cards[6] = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
+static lv_obj_t *moeda_pair_labels[6] = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
+static lv_obj_t *moeda_value_labels[6] = {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
 // compatibilidade: dolar_label aponta para moeda 0
 static lv_obj_t *dolar_label = nullptr;
-static String moedaValues[3] = {"R$ --,--","R$ --,--","R$ --,--"};
+static String moedaValues[6] = {"R$ --,--","R$ --,--","R$ --,--","R$ --,--","R$ --,--","R$ --,--"};
 String dolarValue = "R$ --,--"; // alias para moedaValues[0] e /api/data
 String weatherTemp = "--";
 String weatherDesc = "----";
@@ -60,12 +60,14 @@ lv_obj_t *make_card(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, 
   lv_obj_set_size(card, w, h);
   lv_obj_set_style_bg_color(card, bg, 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 24, 0);
+  lv_obj_set_style_radius(card, 16, 0);
   lv_obj_set_style_border_width(card, 0, 0);
-  lv_obj_set_style_shadow_width(card, 30, 0);
-  lv_obj_set_style_shadow_opa(card, 80, 0);
+  lv_obj_set_style_shadow_width(card, 16, 0);
+  lv_obj_set_style_shadow_opa(card, 40, 0);
   lv_obj_set_style_shadow_color(card, lv_color_hex(0x000000), 0);
-  lv_obj_set_style_pad_all(card, 20, 0);
+  // padding menor para moedas caber BTC inteiro
+  lv_obj_set_style_pad_all(card, 10, 0);
+  lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
   return card;
 }
 
@@ -79,22 +81,17 @@ void make_accent_strip(lv_obj_t *parent, lv_coord_t h, lv_color_t color) {
 }
 
 void create_ui() {
-  // Calcula quantas moedas ativas
-  int cnt = (gConfig.curr1_enabled?1:0) + (gConfig.curr2_enabled?1:0) + (gConfig.curr3_enabled?1:0);
-  if(cnt==0) cnt=1; // mostra pelo menos 1
+  // Calcula quantas moedas ativas (max 6)
+  int cnt = (gConfig.curr1_enabled?1:0) + (gConfig.curr2_enabled?1:0) + (gConfig.curr3_enabled?1:0)
+          + (gConfig.curr4_enabled?1:0) + (gConfig.curr5_enabled?1:0) + (gConfig.curr6_enabled?1:0);
+  if(cnt==0) cnt=1;
+  bool twoRows = (cnt>3); // >3 usa metade da tela (2 linhas) para moedas
 
-  // Proporção: time peso 3, clima peso 2, cada moeda peso 2
-  const int totalCards = 2 + cnt; // time + clima + N moedas
-  const int gap = 12;
-  const int avail = 800 - 56 - (totalCards-1)*gap;
-  const int totalWeight = 5 + cnt*2;
-  const int unit = avail / totalWeight;
-  int timeW = unit*3;
-  int climaW = unit*2;
-  int moedaW = unit*2;
-  // corrige resto
-  int used = timeW + climaW + moedaW*cnt + (totalCards-1)*gap + 56;
-  timeW += (800 - used);
+  int timeW, climaW, moedaW;
+  int moedaH = 300;
+  int gap = 12;
+  // Para >3 moedas: time e clima no topo, moedas em grid 3x2 na metade direita/inferior
+  // Mantemos time e clima sempre visíveis
 
   lv_obj_t *scr = lv_scr_act();
   lv_obj_clean(scr);
@@ -151,100 +148,220 @@ void create_ui() {
   lv_obj_set_style_text_color(status_label, lv_color_hex(0x7A8699), 0);
   lv_obj_align(status_label, LV_ALIGN_RIGHT_MID, -32, 0);
 
-  int x = 28;
-  // TIME
-  lv_obj_t *time_card = make_card(scr, x, 108, timeW, 300, lv_color_hex(0x0F1622));
-  lv_obj_set_style_border_color(time_card, lv_color_hex(0x1E2A3A), 0);
-  lv_obj_set_style_border_width(time_card, 1, 0);
-  make_accent_strip(time_card, 4, lv_color_hex(0x22D3EE));
-  lv_obj_t *time_caption = lv_label_create(time_card);
-  lv_label_set_text(time_caption, "HORARIO LOCAL");
-  lv_obj_set_style_text_font(time_caption, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_color(time_caption, lv_color_hex(0x22D3EE), 0);
-  lv_obj_set_style_text_letter_space(time_caption, 3, 0);
-  lv_obj_align(time_caption, LV_ALIGN_TOP_MID, 0, 18);
-  time_label = lv_label_create(time_card);
-  lv_label_set_text(time_label, "--:--:--");
-  // fonte adapta ao tamanho
-  lv_obj_set_style_text_font(time_label, timeW>300? &lv_font_montserrat_48 : timeW>220? &lv_font_montserrat_32 : &lv_font_montserrat_24, 0);
-  lv_obj_set_style_text_color(time_label, lv_color_hex(0xF8FAFC), 0);
-  lv_obj_align(time_label, LV_ALIGN_CENTER, 0, 10);
-  date_label = lv_label_create(time_card);
-  lv_label_set_text(date_label, "");
-  lv_obj_set_style_text_font(date_label, &lv_font_montserrat_16, 0);
-  lv_obj_set_style_text_color(date_label, lv_color_hex(0x7A8699), 0);
-  lv_obj_align(date_label, LV_ALIGN_BOTTOM_MID, 0, -20);
-  x += timeW + gap;
-
-  // CLIMA
-  lv_obj_t *weather_card = make_card(scr, x, 108, climaW, 300, lv_color_hex(0x0F1622));
-  lv_obj_set_style_border_color(weather_card, lv_color_hex(0x1E2A3A), 0);
-  lv_obj_set_style_border_width(weather_card, 1, 0);
-  make_accent_strip(weather_card, 4, lv_color_hex(0xFFB300));
-  lv_obj_t *weather_caption = lv_label_create(weather_card);
-  lv_label_set_text(weather_caption, "CLIMA");
-  lv_obj_set_style_text_font(weather_caption, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_color(weather_caption, lv_color_hex(0xFFB300), 0);
-  lv_obj_set_style_text_letter_space(weather_caption, 3, 0);
-  lv_obj_align(weather_caption, LV_ALIGN_TOP_MID, 0, 18);
-  weather_city_label = lv_label_create(weather_card);
-  lv_label_set_text(weather_city_label, weatherCity.c_str());
-  lv_obj_set_style_text_font(weather_city_label, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_color(weather_city_label, lv_color_hex(0x7A8699), 0);
-  lv_obj_align(weather_city_label, LV_ALIGN_TOP_MID, 0, 52);
-  weather_temp_label = lv_label_create(weather_card);
-  lv_label_set_text(weather_temp_label, "--\xC2\xB0");
-  lv_obj_set_style_text_font(weather_temp_label, climaW>150? &lv_font_montserrat_48 : &lv_font_montserrat_32, 0);
-  lv_obj_set_style_text_color(weather_temp_label, lv_color_hex(0xFFB300), 0);
-  lv_obj_align(weather_temp_label, LV_ALIGN_CENTER, 0, 10);
-  weather_desc_label = lv_label_create(weather_card);
-  lv_label_set_text(weather_desc_label, "----");
-  lv_obj_set_style_text_font(weather_desc_label, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_color(weather_desc_label, lv_color_hex(0x7A8699), 0);
-  lv_obj_align(weather_desc_label, LV_ALIGN_BOTTOM_MID, 0, -20);
-  x += climaW + gap;
-
-  // MOEDAS - cria até 3 cards proporcionais
-  const char* pairs[3] = {gConfig.currency_1, gConfig.currency_2, gConfig.currency_3};
-  bool enabled[3] = {gConfig.curr1_enabled, gConfig.curr2_enabled, gConfig.curr3_enabled};
-  lv_color_t accents[3] = {lv_color_hex(0x00E676), lv_color_hex(0x2979FF), lv_color_hex(0xFFAB00)};
-  int idx=0;
-  for(int i=0;i<3;i++){
-    if(!enabled[i] && cnt>1) continue; // pula desativadas se há mais de 1
-    if(cnt==1 && i!=0 && !enabled[i]) continue; // se cnt==1 mostra só primeira ativa
-    // se cnt foi calculado com desativadas, mas queremos mostrar só ativas, já ajustado
-    bool isSingle = (cnt==1);
-    lv_obj_t *card = make_card(scr, x, 108, moedaW, 300, lv_color_hex(0x0F1622));
-    lv_obj_set_style_border_color(card, lv_color_hex(0x1E2A3A), 0);
-    lv_obj_set_style_border_width(card, 1, 0);
-    make_accent_strip(card, 4, accents[i]);
-    moeda_cards[idx]=card;
-    lv_obj_t *cap = lv_label_create(card);
-    lv_label_set_text(cap, cnt==1? "CAMBIO" : pairs[i]);
-    lv_obj_set_style_text_font(cap, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(cap, accents[i], 0);
-    lv_obj_set_style_text_letter_space(cap, 2, 0);
-    lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 18);
-    String p = String(pairs[i]); p.replace("-"," / ");
-    lv_obj_t *pairLbl = lv_label_create(card);
-    lv_label_set_text(pairLbl, p.c_str());
-    lv_obj_set_style_text_font(pairLbl, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(pairLbl, lv_color_hex(0x5A6A80), 0);
-    lv_obj_align(pairLbl, LV_ALIGN_TOP_MID, 0, 48);
-    moeda_pair_labels[idx]=pairLbl;
-    lv_obj_t *val = lv_label_create(card);
-    lv_label_set_text(val, moedaValues[i].c_str());
-    lv_obj_set_style_text_font(val, moedaW>150? &lv_font_montserrat_32 : moedaW>110? &lv_font_montserrat_24 : &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(val, accents[i], 0);
-    lv_obj_align(val, LV_ALIGN_CENTER, 0, 20);
-    moeda_value_labels[idx]=val;
-    if(idx==0) dolar_label = val; // compat
-    x += moedaW + gap;
-    idx++;
-    if(idx>=cnt) break;
+  // LAYOUT: se <=3 moedas -> linha unica proporcional; se >3 -> moedas ocupam metade direita em grid 3x2 (usa metade da tela)
+  if(!twoRows){
+    // modo 1-3 moedas - linha unica
+    int availSingle = 800 - 56 - (2+cnt-1)*gap;
+    int totalWeight = 5 + cnt*2;
+    int unit = availSingle / totalWeight;
+    timeW = unit*3;
+    climaW = unit*2;
+    moedaW = unit*2;
+    int used = timeW + climaW + moedaW*cnt + (2+cnt-1)*gap + 56;
+    timeW += (800 - used);
+    int x = 28;
+    // TIME
+    lv_obj_t *time_card = make_card(scr, x, 108, timeW, 300, lv_color_hex(0x0F1622));
+    lv_obj_set_style_border_color(time_card, lv_color_hex(0x1E2A3A), 0);
+    lv_obj_set_style_border_width(time_card, 1, 0);
+    make_accent_strip(time_card, 4, lv_color_hex(0x22D3EE));
+    lv_obj_t *time_caption = lv_label_create(time_card);
+    lv_label_set_text(time_caption, "HORARIO LOCAL");
+    lv_obj_set_style_text_font(time_caption, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(time_caption, lv_color_hex(0x22D3EE), 0);
+    lv_obj_set_style_text_letter_space(time_caption, 3, 0);
+    lv_obj_align(time_caption, LV_ALIGN_TOP_MID, 0, 18);
+    time_label = lv_label_create(time_card);
+    lv_label_set_text(time_label, "--:--:--");
+    lv_obj_set_style_text_font(time_label, timeW>300? &lv_font_montserrat_48 : timeW>220? &lv_font_montserrat_32 : &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(time_label, lv_color_hex(0xF8FAFC), 0);
+    lv_obj_align(time_label, LV_ALIGN_CENTER, 0, 10);
+    date_label = lv_label_create(time_card);
+    lv_label_set_text(date_label, "");
+    lv_obj_set_style_text_font(date_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(date_label, lv_color_hex(0x7A8699), 0);
+    lv_obj_align(date_label, LV_ALIGN_BOTTOM_MID, 0, -20);
+    x += timeW + gap;
+    // CLIMA
+    lv_obj_t *weather_card = make_card(scr, x, 108, climaW, 300, lv_color_hex(0x0F1622));
+    lv_obj_set_style_border_color(weather_card, lv_color_hex(0x1E2A3A), 0);
+    lv_obj_set_style_border_width(weather_card, 1, 0);
+    make_accent_strip(weather_card, 4, lv_color_hex(0xFFB300));
+    lv_obj_t *weather_caption = lv_label_create(weather_card);
+    lv_label_set_text(weather_caption, "CLIMA");
+    lv_obj_set_style_text_font(weather_caption, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(weather_caption, lv_color_hex(0xFFB300), 0);
+    lv_obj_set_style_text_letter_space(weather_caption, 3, 0);
+    lv_obj_align(weather_caption, LV_ALIGN_TOP_MID, 0, 18);
+    weather_city_label = lv_label_create(weather_card);
+    lv_label_set_text(weather_city_label, weatherCity.c_str());
+    lv_obj_set_style_text_font(weather_city_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(weather_city_label, lv_color_hex(0x7A8699), 0);
+    lv_obj_align(weather_city_label, LV_ALIGN_TOP_MID, 0, 52);
+    weather_temp_label = lv_label_create(weather_card);
+    lv_label_set_text(weather_temp_label, "--\xC2\xB0");
+    lv_obj_set_style_text_font(weather_temp_label, climaW>150? &lv_font_montserrat_48 : &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(weather_temp_label, lv_color_hex(0xFFB300), 0);
+    lv_obj_align(weather_temp_label, LV_ALIGN_CENTER, 0, 10);
+    weather_desc_label = lv_label_create(weather_card);
+    lv_label_set_text(weather_desc_label, "----");
+    lv_obj_set_style_text_font(weather_desc_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(weather_desc_label, lv_color_hex(0x7A8699), 0);
+    lv_obj_align(weather_desc_label, LV_ALIGN_BOTTOM_MID, 0, -20);
+    x += climaW + gap;
+    // MOEDAS
+    const char* pairs[6] = {gConfig.currency_1, gConfig.currency_2, gConfig.currency_3, gConfig.currency_4, gConfig.currency_5, gConfig.currency_6};
+    bool enabled[6] = {gConfig.curr1_enabled, gConfig.curr2_enabled, gConfig.curr3_enabled, gConfig.curr4_enabled, gConfig.curr5_enabled, gConfig.curr6_enabled};
+    lv_color_t accents[6] = {lv_color_hex(0x00E676), lv_color_hex(0x2979FF), lv_color_hex(0xFFAB00), lv_color_hex(0xFF4081), lv_color_hex(0xE040FB), lv_color_hex(0x18FFFF)};
+    int idx=0;
+    for(int i=0;i<6 && idx<cnt;i++){
+      if(!enabled[i]) continue;
+      lv_obj_t *card = make_card(scr, x, 108, moedaW, 300, lv_color_hex(0x0F1622));
+      // padding menor para BTC caber inteiro (R$ 401322)
+      lv_obj_set_style_pad_all(card, 6, 0);
+      lv_obj_set_style_border_color(card, lv_color_hex(0x1E2A3A), 0);
+      lv_obj_set_style_border_width(card, 1, 0);
+      make_accent_strip(card, 4, accents[i]);
+      moeda_cards[idx]=card;
+      lv_obj_t *cap = lv_label_create(card);
+      lv_label_set_text(cap, cnt==1? "CAMBIO" : pairs[i]);
+      lv_obj_set_style_text_font(cap, &lv_font_montserrat_14, 0);
+      lv_obj_set_style_text_color(cap, accents[i], 0);
+      lv_obj_set_style_text_letter_space(cap, 1, 0);
+      lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 16);
+      String p = String(pairs[i]); p.replace("-"," / ");
+      lv_obj_t *pairLbl = lv_label_create(card);
+      lv_label_set_text(pairLbl, p.c_str());
+      lv_obj_set_style_text_font(pairLbl, moedaW>130? &lv_font_montserrat_14 : &lv_font_montserrat_12, 0);
+      lv_obj_set_style_text_color(pairLbl, lv_color_hex(0x5A6A80), 0);
+      lv_obj_align(pairLbl, LV_ALIGN_TOP_MID, 0, 44);
+      moeda_pair_labels[idx]=pairLbl;
+      lv_obj_t *val = lv_label_create(card);
+      lv_label_set_text(val, moedaValues[i].c_str());
+      // BTC precisa caber: usa fonte menor se valor longo
+      int len = moedaValues[i].length();
+      const lv_font_t* f = &lv_font_montserrat_20;
+      if(moedaW>140) f = len>8? &lv_font_montserrat_24 : &lv_font_montserrat_32;
+      else if(moedaW>110) f = len>8? &lv_font_montserrat_20 : &lv_font_montserrat_24;
+      else f = &lv_font_montserrat_16;
+      lv_obj_set_style_text_font(val, f, 0);
+      lv_obj_set_style_text_color(val, accents[i], 0);
+      lv_label_set_long_mode(val, LV_LABEL_LONG_SCROLL_CIRCULAR);
+      lv_obj_set_width(val, moedaW-12);
+      lv_obj_set_style_text_align(val, LV_TEXT_ALIGN_CENTER, 0);
+      lv_obj_align(val, LV_ALIGN_CENTER, 0, 18);
+      moeda_value_labels[idx]=val;
+      if(idx==0) dolar_label = val;
+      x += moedaW + gap;
+      idx++;
+    }
+    for(int i=idx;i<6;i++){ moeda_cards[i]=nullptr; moeda_pair_labels[i]=nullptr; moeda_value_labels[i]=nullptr; }
+  } else {
+    // modo 4-6 moedas: metade da tela para moedas (direita), time+clima esquerda
+    timeW = 340; // esquerda fixa
+    climaW = 380; // na verdade clima fica topo direita, mas calculamos
+    int rightW = 800 - 28 - timeW - gap - 28; // 392
+    int xTime = 28;
+    int xRight = xTime + timeW + gap;
+    // TIME grande esquerda 300 altura
+    lv_obj_t *time_card = make_card(scr, xTime, 108, timeW, 300, lv_color_hex(0x0F1622));
+    lv_obj_set_style_border_color(time_card, lv_color_hex(0x1E2A3A), 0);
+    lv_obj_set_style_border_width(time_card, 1, 0);
+    make_accent_strip(time_card, 4, lv_color_hex(0x22D3EE));
+    lv_obj_t *time_caption = lv_label_create(time_card);
+    lv_label_set_text(time_caption, "HORARIO LOCAL");
+    lv_obj_set_style_text_font(time_caption, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(time_caption, lv_color_hex(0x22D3EE), 0);
+    lv_obj_set_style_text_letter_space(time_caption, 3, 0);
+    lv_obj_align(time_caption, LV_ALIGN_TOP_MID, 0, 18);
+    time_label = lv_label_create(time_card);
+    lv_label_set_text(time_label, "--:--:--");
+    lv_obj_set_style_text_font(time_label, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(time_label, lv_color_hex(0xF8FAFC), 0);
+    lv_obj_align(time_label, LV_ALIGN_CENTER, 0, 10);
+    date_label = lv_label_create(time_card);
+    lv_label_set_text(date_label, "");
+    lv_obj_set_style_text_font(date_label, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(date_label, lv_color_hex(0x7A8699), 0);
+    lv_obj_align(date_label, LV_ALIGN_BOTTOM_MID, 0, -20);
+    // CLIMA topo direita
+    lv_obj_t *weather_card = make_card(scr, xRight, 108, rightW, 140, lv_color_hex(0x0F1622));
+    lv_obj_set_style_border_color(weather_card, lv_color_hex(0x1E2A3A), 0);
+    lv_obj_set_style_border_width(weather_card, 1, 0);
+    make_accent_strip(weather_card, 4, lv_color_hex(0xFFB300));
+    lv_obj_t *weather_caption = lv_label_create(weather_card);
+    lv_label_set_text(weather_caption, "CLIMA");
+    lv_obj_set_style_text_font(weather_caption, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(weather_caption, lv_color_hex(0xFFB300), 0);
+    lv_obj_set_style_text_letter_space(weather_caption, 3, 0);
+    lv_obj_align(weather_caption, LV_ALIGN_TOP_MID, 0, 12);
+    weather_city_label = lv_label_create(weather_card);
+    lv_label_set_text(weather_city_label, weatherCity.c_str());
+    lv_obj_set_style_text_font(weather_city_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(weather_city_label, lv_color_hex(0x7A8699), 0);
+    lv_obj_align(weather_city_label, LV_ALIGN_TOP_MID, 0, 36);
+    weather_temp_label = lv_label_create(weather_card);
+    lv_label_set_text(weather_temp_label, "--\xC2\xB0");
+    lv_obj_set_style_text_font(weather_temp_label, &lv_font_montserrat_32, 0);
+    lv_obj_set_style_text_color(weather_temp_label, lv_color_hex(0xFFB300), 0);
+    lv_obj_align(weather_temp_label, LV_ALIGN_LEFT_MID, 16, 14);
+    weather_desc_label = lv_label_create(weather_card);
+    lv_label_set_text(weather_desc_label, "----");
+    lv_obj_set_style_text_font(weather_desc_label, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(weather_desc_label, lv_color_hex(0x7A8699), 0);
+    lv_obj_align(weather_desc_label, LV_ALIGN_RIGHT_MID, -16, 14);
+    // MOEDAS grid 3x2 na metade direita inferior (usa só metade da tela)
+    const char* pairs[6] = {gConfig.currency_1, gConfig.currency_2, gConfig.currency_3, gConfig.currency_4, gConfig.currency_5, gConfig.currency_6};
+    bool enabled[6] = {gConfig.curr1_enabled, gConfig.curr2_enabled, gConfig.curr3_enabled, gConfig.curr4_enabled, gConfig.curr5_enabled, gConfig.curr6_enabled};
+    lv_color_t accents[6] = {lv_color_hex(0x00E676), lv_color_hex(0x2979FF), lv_color_hex(0xFFAB00), lv_color_hex(0xFF4081), lv_color_hex(0xE040FB), lv_color_hex(0x18FFFF)};
+    int cols=3; int rows = (cnt+2)/3; // 2 linhas para 4-6
+    int moedaGap = 8;
+    moedaW = (rightW - (cols-1)*moedaGap)/cols; // ~125
+    moedaH = (148 - (rows-1)*moedaGap)/rows; // ~70 para 2 linhas
+    if(rows==1) moedaH = 148;
+    int baseY = 108+140+12; // 260
+    int idx=0;
+    for(int i=0;i<6 && idx<cnt;i++){
+      if(!enabled[i]) continue;
+      int col = idx % cols;
+      int row = idx / cols;
+      int mx = xRight + col*(moedaW+moedaGap);
+      int my = baseY + row*(moedaH+moedaGap);
+      lv_obj_t *card = make_card(scr, mx, my, moedaW, moedaH, lv_color_hex(0x0F1622));
+      lv_obj_set_style_pad_all(card, 6, 0);
+      lv_obj_set_style_border_color(card, lv_color_hex(0x1E2A3A), 0);
+      lv_obj_set_style_border_width(card, 1, 0);
+      make_accent_strip(card, 3, accents[i]);
+      moeda_cards[idx]=card;
+      lv_obj_t *cap = lv_label_create(card);
+      lv_label_set_text(cap, pairs[i]);
+      lv_obj_set_style_text_font(cap, &lv_font_montserrat_12, 0);
+      lv_obj_set_style_text_color(cap, accents[i], 0);
+      lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 6);
+      String p = String(pairs[i]); p.replace("-","/");
+      lv_obj_t *pairLbl = lv_label_create(card);
+      lv_label_set_text(pairLbl, p.c_str());
+      lv_obj_set_style_text_font(pairLbl, &lv_font_montserrat_12, 0);
+      lv_obj_set_style_text_color(pairLbl, lv_color_hex(0x5A6A80), 0);
+      lv_obj_align(pairLbl, LV_ALIGN_TOP_MID, 0, 20);
+      moeda_pair_labels[idx]=pairLbl;
+      lv_obj_t *val = lv_label_create(card);
+      lv_label_set_text(val, moedaValues[i].c_str());
+      // ajuste para BTC caber inteiro
+      int len = moedaValues[i].length();
+      const lv_font_t* f = len>9? &lv_font_montserrat_14 : len>7? &lv_font_montserrat_16 : &lv_font_montserrat_20;
+      lv_obj_set_style_text_font(val, f, 0);
+      lv_obj_set_style_text_color(val, accents[i], 0);
+      lv_label_set_long_mode(val, LV_LABEL_LONG_SCROLL_CIRCULAR);
+      lv_obj_set_width(val, moedaW-8);
+      lv_obj_set_style_text_align(val, LV_TEXT_ALIGN_CENTER, 0);
+      lv_obj_align(val, LV_ALIGN_BOTTOM_MID, 0, -6);
+      moeda_value_labels[idx]=val;
+      if(idx==0) dolar_label = val;
+      idx++;
+    }
+    for(int i=idx;i<6;i++){ moeda_cards[i]=nullptr; moeda_pair_labels[i]=nullptr; moeda_value_labels[i]=nullptr; }
   }
-  // limpa slots não usados
-  for(int i=idx;i<3;i++){ moeda_cards[i]=nullptr; moeda_pair_labels[i]=nullptr; moeda_value_labels[i]=nullptr; }
 
   lv_obj_t *footer = lv_label_create(scr);
   char fbuf[64];
@@ -274,11 +391,10 @@ void update_clock(lv_timer_t *timer) {
 
 void update_dolar(lv_timer_t *timer) {
   if (WiFi.status() != WL_CONNECTED) return;
-  // Monta lista de moedas ativas
-  String pairs[3] = {String(gConfig.currency_1), String(gConfig.currency_2), String(gConfig.currency_3)};
-  bool enabled[3] = {gConfig.curr1_enabled, gConfig.curr2_enabled, gConfig.curr3_enabled};
+  String pairs[6] = {String(gConfig.currency_1), String(gConfig.currency_2), String(gConfig.currency_3), String(gConfig.currency_4), String(gConfig.currency_5), String(gConfig.currency_6)};
+  bool enabled[6] = {gConfig.curr1_enabled, gConfig.curr2_enabled, gConfig.curr3_enabled, gConfig.curr4_enabled, gConfig.curr5_enabled, gConfig.curr6_enabled};
   String list = "";
-  for(int i=0;i<3;i++) if(enabled[i]) { if(list.length()) list+=",";
+  for(int i=0;i<6;i++) if(enabled[i]) { if(list.length()) list+=",";
     list += pairs[i];
   }
   if(list.length()==0) return;
@@ -293,17 +409,27 @@ void update_dolar(lv_timer_t *timer) {
     DeserializationError err = deserializeJson(doc, payload);
     if (!err) {
       int idx=0;
-      for(int i=0;i<3;i++) if(enabled[i]){
+      for(int i=0;i<6;i++) if(enabled[i]){
         String key = pairs[i]; key.replace("-","");
         if(doc[key].is<JsonObject>()){
           const char *bid = doc[key]["bid"];
           if(bid){
+            // formata BTC sem travar: mantem 2 decimais mas cabe
             String val = String("R$ ") + bid;
+            // para BTC remove decimais extras se muito longo
+            if(val.length()>10) {
+              float f = doc[key]["bid"].as<float>();
+              if(f>10000) val = String("R$ ") + String((int)f);
+            }
             moedaValues[i] = val;
             if(i==0) dolarValue = val;
-            if(moeda_value_labels[idx]) lv_label_set_text(moeda_value_labels[idx], val.c_str());
-            // atualiza par label caso mudou config sem reboot
-            if(moeda_pair_labels[idx]){
+            if(idx<6 && moeda_value_labels[idx]) {
+              lv_label_set_text(moeda_value_labels[idx], val.c_str());
+              // ajusta fonte para caber
+              if(val.length()>9) lv_obj_set_style_text_font(moeda_value_labels[idx], &lv_font_montserrat_14, 0);
+              else if(val.length()>7) lv_obj_set_style_text_font(moeda_value_labels[idx], &lv_font_montserrat_16, 0);
+            }
+            if(idx<6 && moeda_pair_labels[idx]){
               String p = pairs[i]; p.replace("-"," / ");
               lv_label_set_text(moeda_pair_labels[idx], p.c_str());
             }

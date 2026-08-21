@@ -5,13 +5,19 @@
 struct AppConfig {
   char wifi_ssid[64] = "ROBOBUILDERS";
   char wifi_pass[64] = "luan123*";
-  // Moedas: awesomeapi pairs. Até 3 simultâneas no painel
+  // Moedas: awesomeapi pairs. Até 6 simultâneas (metade da tela, 2 linhas)
   char currency_1[16] = "USD-BRL";
   char currency_2[16] = "EUR-BRL";
   char currency_3[16] = "BTC-BRL";
+  char currency_4[16] = "ETH-BRL";
+  char currency_5[16] = "GBP-BRL";
+  char currency_6[16] = "JPY-BRL";
   bool curr1_enabled = true;
   bool curr2_enabled = true;
   bool curr3_enabled = true;
+  bool curr4_enabled = false;
+  bool curr5_enabled = false;
+  bool curr6_enabled = false;
   char city[64] = "Sao Paulo";
   float lat = -23.5505f;
   float lon = -46.6333f;

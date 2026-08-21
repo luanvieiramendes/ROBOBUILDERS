@@ -17,10 +17,19 @@ void loadConfig() {
   s.toCharArray(gConfig.currency_2, sizeof(gConfig.currency_2));
   s = prefs.getString("c3", gConfig.currency_3);
   s.toCharArray(gConfig.currency_3, sizeof(gConfig.currency_3));
+  s = prefs.getString("c4", gConfig.currency_4);
+  s.toCharArray(gConfig.currency_4, sizeof(gConfig.currency_4));
+  s = prefs.getString("c5", gConfig.currency_5);
+  s.toCharArray(gConfig.currency_5, sizeof(gConfig.currency_5));
+  s = prefs.getString("c6", gConfig.currency_6);
+  s.toCharArray(gConfig.currency_6, sizeof(gConfig.currency_6));
 
   gConfig.curr1_enabled = prefs.getBool("c1en", gConfig.curr1_enabled);
   gConfig.curr2_enabled = prefs.getBool("c2en", gConfig.curr2_enabled);
   gConfig.curr3_enabled = prefs.getBool("c3en", gConfig.curr3_enabled);
+  gConfig.curr4_enabled = prefs.getBool("c4en", gConfig.curr4_enabled);
+  gConfig.curr5_enabled = prefs.getBool("c5en", gConfig.curr5_enabled);
+  gConfig.curr6_enabled = prefs.getBool("c6en", gConfig.curr6_enabled);
 
   s = prefs.getString("city", gConfig.city);
   s.toCharArray(gConfig.city, sizeof(gConfig.city));
@@ -42,9 +51,15 @@ void saveConfig() {
   prefs.putString("c1", gConfig.currency_1);
   prefs.putString("c2", gConfig.currency_2);
   prefs.putString("c3", gConfig.currency_3);
+  prefs.putString("c4", gConfig.currency_4);
+  prefs.putString("c5", gConfig.currency_5);
+  prefs.putString("c6", gConfig.currency_6);
   prefs.putBool("c1en", gConfig.curr1_enabled);
   prefs.putBool("c2en", gConfig.curr2_enabled);
   prefs.putBool("c3en", gConfig.curr3_enabled);
+  prefs.putBool("c4en", gConfig.curr4_enabled);
+  prefs.putBool("c5en", gConfig.curr5_enabled);
+  prefs.putBool("c6en", gConfig.curr6_enabled);
   prefs.putString("city", gConfig.city);
   prefs.putFloat("lat", gConfig.lat);
   prefs.putFloat("lon", gConfig.lon);

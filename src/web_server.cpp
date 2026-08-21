@@ -13,7 +13,6 @@ extern volatile bool gNeedsRebuild;
 
 WebServer webServer(80);
 
-// HTML v2 - interativo, facil, capitals + IBGE + preview moedas/clima ao vivo
 static const char HTML_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -48,21 +47,22 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 .knob{position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s}
 .switch.on .knob{left:21px}
 .line{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--card2);margin:6px 0}
-.line input{border:0;background:transparent;padding:0;font-weight:700}
 .preview{font-size:12px;color:var(--muted);margin-top:4px;min-height:16px}
 .btn{border:0;padding:12px 14px;border-radius:12px;font-weight:800;cursor:pointer;width:100%;margin-top:10px;font-size:13px}
 .btn-accent{background:var(--accent);color:#000} .btn-green{background:var(--green);color:#000} .btn-dark{background:#1E2A3A;color:var(--text)}
 .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #1E2A3A;font-size:13px}
-.kv b{color:var(--text)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .chip{padding:6px 10px;border-radius:999px;background:#0F1622;border:1px solid var(--border);font-size:12px;cursor:pointer;color:var(--muted)}
 .chip:hover{border-color:var(--accent);color:var(--text)}
 .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#0F1622;border:1px solid var(--border);padding:10px 14px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.5);display:none;z-index:99}
-.search{position:relative}
 .suggest{position:absolute;top:100%;left:0;right:0;background:#0F1622;border:1px solid var(--border);border-radius:12px;max-height:160px;overflow:auto;z-index:10;display:none}
 .suggest div{padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid #1E2A3A}
 .suggest div:hover{background:#1E2A3A}
 .hidden{display:none!important}
+.wifi-item{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--card2);margin:6px 0;cursor:pointer}
+.wifi-item:hover{border-color:var(--accent)}
+.wifi-item b{flex:1}
+.rssi{font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -75,12 +75,11 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 
 <div class="tabs">
  <div class="tab active" onclick="showTab('dash')">📊 Dashboard</div>
- <div class="tab" onclick="showTab('moedas')">💱 Moedas</div>
+ <div class="tab" onclick="showTab('moedas')">💱 Moedas (6)</div>
  <div class="tab" onclick="showTab('clima')">🌤️ Clima</div>
- <div class="tab" onclick="showTab('sistema')">⚙️ Sistema</div>
+ <div class="tab" onclick="showTab('sistema')">⚙️ Sistema/Rede</div>
 </div>
 
-<!-- DASHBOARD -->
 <div id="tab-dash" class="grid">
  <div class="card accent">
   <h2>LIVE DO PAINEL</h2>
@@ -88,122 +87,51 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
   <div class="row"><button class="btn-dark" onclick="loadData()">🔄 Atualizar</button><button class="btn-dark" onclick="testBlink()">💡 Testar brilho</button></div>
  </div>
  <div class="card green">
-  <h2>PRÉVIA CÂMBIO (tempo real AwesomeAPI)</h2>
+  <h2>PRÉVIA CÂMBIO (tempo real)</h2>
   <div id="moedaPreview"></div>
   <small style="color:var(--muted)">Atualiza ao trocar a moeda, sem salvar.</small>
  </div>
  <div class="card yellow">
-  <h2>PRÉVIA CLIMA (Open-Meteo)</h2>
+  <h2>PRÉVIA CLIMA</h2>
   <div id="climaPreview">Selecione a cidade para ver</div>
   <button class="btn-dark" onclick="previewClima()">👁️ Ver agora</button>
  </div>
 </div>
 
-<!-- MOEDAS -->
 <div id="tab-moedas" class="grid hidden">
  <div class="card green" style="grid-column:1/-1">
-  <h2>ESCOLHA ATÉ 3 MOEDAS — valores reais aparecem no painel na hora</h2>
-  <small style="color:var(--muted)">AwesomeAPI • Ex: USD-BRL = Dólar em Reais • Salve para aplicar no ESP</small>
+  <h2>ESCOLHA ATÉ 6 MOEDAS — metade da tela em 2 linhas (3x2)</h2>
+  <small style="color:var(--muted)">AwesomeAPI • BTC agora com fonte reduzida para caber R$ 401k inteiro • Salve para aplicar</small>
  </div>
-
- <div class="card green" id="slot1">
-  <h2>MOEDA 1</h2>
-  <div style="display:flex;align-items:center;gap:10px">
-   <div class="switch on" id="sw1" onclick="toggle(1)"><div class="knob"></div></div><b>Ativada</b>
-   <span id="pv1" class="preview" style="margin-left:auto">--</span>
-  </div>
-  <label>Par</label>
-  <div class="search"><input id="c1" list="pairs" placeholder="USD-BRL" oninput="onMoedaInput(1)"><datalist id="pairs"></datalist><div id="sg1" class="suggest"></div></div>
-  <div class="chips" id="chips1"></div>
- </div>
-
- <div class="card green" id="slot2">
-  <h2>MOEDA 2</h2>
-  <div style="display:flex;align-items:center;gap:10px">
-   <div class="switch on" id="sw2" onclick="toggle(2)"><div class="knob"></div></div><b>Ativada</b>
-   <span id="pv2" class="preview" style="margin-left:auto">--</span>
-  </div>
-  <label>Par</label>
-  <div class="search"><input id="c2" list="pairs" placeholder="EUR-BRL" oninput="onMoedaInput(2)"></div>
-  <div class="chips" id="chips2"></div>
- </div>
-
- <div class="card green" id="slot3">
-  <h2>MOEDA 3</h2>
-  <div style="display:flex;align-items:center;gap:10px">
-   <div class="switch on" id="sw3" onclick="toggle(3)"><div class="knob"></div></div><b>Ativada</b>
-   <span id="pv3" class="preview" style="margin-left:auto">--</span>
-  </div>
-  <label>Par</label>
-  <div class="search"><input id="c3" list="pairs" placeholder="BTC-BRL" oninput="onMoedaInput(3)"></div>
-  <div class="chips" id="chips3"></div>
- </div>
-
- <div class="card">
-  <h2>INTERVALO</h2>
-  <label>Atualizar cotações a cada (segundos) <input id="dint" type="number" min="30" max="3600"></label>
-  <button class="btn-green" onclick="save()">💾 Salvar moedas</button>
- </div>
+ <div class="card green" id="slot1"><h2>MOEDA 1</h2><div style="display:flex;align-items:center;gap:10px"><div class="switch on" id="sw1" onclick="toggle(1)"><div class="knob"></div></div><b>Ativada</b><span id="pv1" class="preview" style="margin-left:auto">--</span></div><label>Par</label><div class="search"><input id="c1" placeholder="USD-BRL" oninput="onMoedaInput(1)"><div id="sg1" class="suggest"></div></div><div class="chips" id="chips1"></div></div>
+ <div class="card green" id="slot2"><h2>MOEDA 2</h2><div style="display:flex;align-items:center;gap:10px"><div class="switch on" id="sw2" onclick="toggle(2)"><div class="knob"></div></div><b>Ativada</b><span id="pv2" class="preview" style="margin-left:auto">--</span></div><label>Par</label><div class="search"><input id="c2" placeholder="EUR-BRL" oninput="onMoedaInput(2)"><div id="sg2" class="suggest"></div></div><div class="chips" id="chips2"></div></div>
+ <div class="card green" id="slot3"><h2>MOEDA 3</h2><div style="display:flex;align-items:center;gap:10px"><div class="switch on" id="sw3" onclick="toggle(3)"><div class="knob"></div></div><b>Ativada</b><span id="pv3" class="preview" style="margin-left:auto">--</span></div><label>Par</label><div class="search"><input id="c3" placeholder="BTC-BRL" oninput="onMoedaInput(3)"><div id="sg3" class="suggest"></div></div><div class="chips" id="chips3"></div></div>
+ <div class="card green" id="slot4"><h2>MOEDA 4</h2><div style="display:flex;align-items:center;gap:10px"><div class="switch" id="sw4" onclick="toggle(4)"><div class="knob"></div></div><b>Desativada</b><span id="pv4" class="preview" style="margin-left:auto">--</span></div><label>Par</label><div class="search"><input id="c4" placeholder="ETH-BRL" oninput="onMoedaInput(4)"><div id="sg4" class="suggest"></div></div><div class="chips" id="chips4"></div></div>
+ <div class="card green" id="slot5"><h2>MOEDA 5</h2><div style="display:flex;align-items:center;gap:10px"><div class="switch" id="sw5" onclick="toggle(5)"><div class="knob"></div></div><b>Desativada</b><span id="pv5" class="preview" style="margin-left:auto">--</span></div><label>Par</label><div class="search"><input id="c5" placeholder="GBP-BRL" oninput="onMoedaInput(5)"><div id="sg5" class="suggest"></div></div><div class="chips" id="chips5"></div></div>
+ <div class="card green" id="slot6"><h2>MOEDA 6</h2><div style="display:flex;align-items:center;gap:10px"><div class="switch" id="sw6" onclick="toggle(6)"><div class="knob"></div></div><b>Desativada</b><span id="pv6" class="preview" style="margin-left:auto">--</span></div><label>Par</label><div class="search"><input id="c6" placeholder="JPY-BRL" oninput="onMoedaInput(6)"><div id="sg6" class="suggest"></div></div><div class="chips" id="chips6"></div></div>
+ <div class="card"><h2>INTERVALO</h2><label>Atualizar cotações a cada (s) <input id="dint" type="number" min="30" max="3600"></label><button class="btn-green" onclick="save()">💾 Salvar moedas (até 6)</button></div>
 </div>
 
-<!-- CLIMA -->
 <div id="tab-clima" class="grid hidden">
- <div class="card yellow" style="grid-column:1/-1">
-  <h2>TODAS AS CIDADES DO BRASIL — escolha e veja a temperatura real</h2>
-  <small style="color:var(--muted)">Fonte: IBGE + Open-Meteo • Ao salvar, o painel passa a mostrar essa cidade</small>
- </div>
-
- <div class="card yellow">
-  <h2>BUSCA RÁPIDA POR ESTADO/CIDADE</h2>
-  <label>Estado</label><select id="uf"><option value="">Carregando estados...</option></select>
-  <label>Cidade</label><div class="search"><input id="cityInput" placeholder="Digite para filtrar..."><div id="citySg" class="suggest"></div></div>
-  <select id="citySel" size="6" style="height:140px;margin-top:8px"></select>
-  <button class="btn-dark" onclick="usarCidadeSelecionada()">📍 Usar esta cidade</button>
- </div>
-
- <div class="card yellow">
-  <h2>CAPITAIS (1 clique)</h2>
-  <div class="chips" id="caps"></div>
-  <label>Ou digite a cidade</label><input id="city" placeholder="Sao Paulo">
-  <div class="row"><div><label>Latitude</label><input id="lat" type="number" step="0.0001"></div><div><label>Longitude</label><input id="lon" type="number" step="0.0001"></div></div>
-  <button class="btn-dark" onclick="buscarCidade()">🔍 Buscar lat/lon</button>
-  <button class="btn-dark" onclick="previewClima()">🌡️ Prévia temperatura</button>
-  <label>Intervalo clima (s) <input id="wint" type="number" min="60" max="3600"></label>
-  <button class="btn-green" onclick="save()">💾 Salvar clima</button>
- </div>
-
- <div class="card">
-  <h2>PRÉVIA</h2>
-  <div id="climaCard" style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center">
-   <div style="font-size:11px;letter-spacing:2px;color:var(--yellow)">CLIMA</div>
-   <div id="pcity" style="color:var(--muted);font-size:12px">--</div>
-   <div id="ptemp" style="font-size:36px;font-weight:900;color:var(--yellow);margin:6px 0">--°</div>
-   <div id="pdesc" style="color:var(--muted);font-size:13px">--</div>
-  </div>
- </div>
+ <div class="card yellow" style="grid-column:1/-1"><h2>TODAS AS CIDADES DO BRASIL</h2><small style="color:var(--muted)">IBGE 5570 municípios + capitais 1 clique • Salve para painel</small></div>
+ <div class="card yellow"><h2>BUSCA POR ESTADO/CIDADE</h2><label>Estado</label><select id="uf"><option>Carregando...</option></select><label>Cidade</label><div class="search"><input id="cityInput" placeholder="Digite para filtrar..."><div id="citySg" class="suggest"></div></div><select id="citySel" size="6" style="height:140px;margin-top:8px"></select><button class="btn-dark" onclick="usarCidadeSelecionada()">📍 Usar esta cidade</button></div>
+ <div class="card yellow"><h2>CAPITAIS (1 clique)</h2><div class="chips" id="caps"></div><label>Ou digite</label><input id="city" placeholder="Sao Paulo"><div class="row"><div><label>Latitude</label><input id="lat" type="number" step="0.0001"></div><div><label>Longitude</label><input id="lon" type="number" step="0.0001"></div></div><button class="btn-dark" onclick="buscarCidade()">🔍 Buscar lat/lon</button><button class="btn-dark" onclick="previewClima()">🌡️ Prévia</button><label>Intervalo clima (s) <input id="wint" type="number" min="60" max="3600"></label><button class="btn-green" onclick="save()">💾 Salvar clima</button></div>
+ <div class="card"><h2>PRÉVIA</h2><div id="climaCard" style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center"><div style="font-size:11px;letter-spacing:2px;color:var(--yellow)">CLIMA</div><div id="pcity" style="color:var(--muted);font-size:12px">--</div><div id="ptemp" style="font-size:36px;font-weight:900;color:var(--yellow);margin:6px 0">--°</div><div id="pdesc" style="color:var(--muted);font-size:13px">--</div></div></div>
 </div>
 
-<!-- SISTEMA -->
 <div id="tab-sistema" class="grid hidden">
- <div class="card accent">
-  <h2>TELA</h2>
-  <label>Brilho <span id="bv" style="float:right;color:var(--accent)"></span><input id="bright" type="range" min="10" max="255"></label>
-  <div style="height:10px;background:#0F1622;border-radius:999px;overflow:hidden;margin-top:6px"><div id="brightBar" style="height:100%;background:var(--accent);width:50%"></div></div>
-  <label>Fuso horário</label>
-  <select id="tz"><option value="-5">-5 Acre</option><option value="-4">-4 Manaus</option><option value="-3" selected>-3 Brasília</option><option value="-2">-2 Fernando</option></select>
- </div>
+ <div class="card accent"><h2>TELA</h2><label>Brilho <span id="bv" style="float:right;color:var(--accent)"></span><input id="bright" type="range" min="10" max="255"></label><div style="height:10px;background:#0F1622;border-radius:999px;overflow:hidden;margin-top:6px"><div id="brightBar" style="height:100%;background:var(--accent);width:50%"></div></div><label>Fuso</label><select id="tz"><option value="-5">-5 Acre</option><option value="-4">-4 Manaus</option><option value="-3" selected>-3 Brasília</option><option value="-2">-2 Fernando</option></select></div>
  <div class="card">
-  <h2>WIFI</h2>
-  <label>SSID <input id="ssid"></label>
+  <h2>WIFI - REDES PRÓXIMAS (sem digitar SSID)</h2>
+  <button class="btn-dark" onclick="scanWifi()">🔍 Buscar redes próximas</button>
+  <div id="wifiList" style="max-height:220px;overflow:auto;margin-top:8px"></div>
+  <label>SSID selecionado <input id="ssid" placeholder="Clique na rede acima ou digite"></label>
   <label>Senha <input id="pass" type="password" placeholder="deixe vazio para manter"></label>
-  <div style="font-size:11px;color:var(--red);margin-top:6px">Trocar WiFi tenta reconectar 20s, se falhar volta e cria AP Painel-Config</div>
-  <button class="btn-green" onclick="save()">💾 Salvar tudo</button>
+  <div style="font-size:11px;color:var(--red);margin-top:6px">Ao salvar, conecta automaticamente sem digitar SSID manual.</div>
+  <button class="btn-green" onclick="save()">💾 Salvar e Conectar</button>
   <button class="btn-dark" onclick="restart()">🔄 Reiniciar</button>
  </div>
- <div class="card">
-  <h2>SOBRE</h2>
-  <div id="about" style="font-size:12px;color:var(--muted);line-height:1.6"></div>
- </div>
+ <div class="card"><h2>SOBRE</h2><div id="about" style="font-size:12px;color:var(--muted);line-height:1.6"></div></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -211,46 +139,36 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 
 <script>
 const PAIRS=["USD-BRL","EUR-BRL","BTC-BRL","ETH-BRL","GBP-BRL","JPY-BRL","CAD-BRL","AUD-BRL","CHF-BRL","CNY-BRL","ARS-BRL","CLP-BRL","UYU-BRL","PYG-BRL","BOB-BRL","COP-BRL","PEN-BRL","MXN-BRL","ILS-BRL","NZD-BRL","SGD-BRL","HKD-BRL","SEK-BRL","DKK-BRL","NOK-BRL","AED-BRL","SAR-BRL","TRY-BRL","ZAR-BRL","INR-BRL","KRW-BRL","PLN-BRL"];
-const CAPS=[
- ["Rio Branco-AC",-9.97499,-67.8243],["Maceió-AL",-9.66583,-35.73528],["Macapá-AP",0.03407,-51.0694],["Manaus-AM",-3.13194,-60.02222],["Salvador-BA",-12.97775,-38.50198],["Fortaleza-CE",-3.71722,-38.54306],["Brasília-DF",-15.79389,-47.88278],["Vitória-ES",-20.3155,-40.31282],["Goiânia-GO",-16.67861,-49.25389],["São Luís-MA",-2.53874,-44.28242],["Cuiabá-MT",-15.60141,-56.09789],["Campo Grande-MS",-20.46971,-54.62011],["Belo Horizonte-MG",-19.91667,-43.93444],["Belém-PA",-1.45583,-48.50444],["João Pessoa-PB",-7.11509,-34.8641],["Curitiba-PR",-25.429,-49.26714],["Recife-PE",-8.04756,-34.87696],["Teresina-PI",-5.08921,-42.8016],["Rio de Janeiro-RJ",-22.90685,-43.1729],["Natal-RN",-5.795,-35.20944],["Porto Alegre-RS",-30.03465,-51.21766],["Porto Velho-RO",-8.76183,-63.90389],["Boa Vista-RR",2.82352,-60.67583],["Florianópolis-SC",-27.59487,-48.54822],["São Paulo-SP",-23.55052,-46.63331],["Aracaju-SE",-10.9472,-37.07308],["Palmas-TO",-10.16891,-48.33178]
-];
-let state={c1en:true,c2en:true,c3en:true};
+const CAPS=[["Rio Branco-AC",-9.97499,-67.8243],["Maceió-AL",-9.66583,-35.73528],["Macapá-AP",0.03407,-51.0694],["Manaus-AM",-3.13194,-60.02222],["Salvador-BA",-12.97775,-38.50198],["Fortaleza-CE",-3.71722,-38.54306],["Brasília-DF",-15.79389,-47.88278],["Vitória-ES",-20.3155,-40.31282],["Goiânia-GO",-16.67861,-49.25389],["São Luís-MA",-2.53874,-44.28242],["Cuiabá-MT",-15.60141,-56.09789],["Campo Grande-MS",-20.46971,-54.62011],["Belo Horizonte-MG",-19.91667,-43.93444],["Belém-PA",-1.45583,-48.50444],["João Pessoa-PB",-7.11509,-34.8641],["Curitiba-PR",-25.429,-49.26714],["Recife-PE",-8.04756,-34.87696],["Teresina-PI",-5.08921,-42.8016],["Rio de Janeiro-RJ",-22.90685,-43.1729],["Natal-RN",-5.795,-35.20944],["Porto Alegre-RS",-30.03465,-51.21766],["Porto Velho-RO",-8.76183,-63.90389],["Boa Vista-RR",2.82352,-60.67583],["Florianópolis-SC",-27.59487,-48.54822],["São Paulo-SP",-23.55052,-46.63331],["Aracaju-SE",-10.9472,-37.07308],["Palmas-TO",-10.16891,-48.33178]];
+let state={c1en:true,c2en:true,c3en:true,c4en:false,c5en:false,c6en:false};
 function toast(m,ok=true){let t=document.getElementById('toast');t.textContent=m;t.style.display='block';t.style.borderColor=ok?'#00E676':'#FF5252';t.style.color=ok?'#00E676':'#FF5252';setTimeout(()=>t.style.display='none',2500)}
 function log(m){let e=document.getElementById('log');e.textContent=new Date().toLocaleTimeString()+" "+m+"\n"+e.textContent}
 function showTab(n){document.querySelectorAll('.tab').forEach((e,i)=>e.classList.toggle('active',["dash","moedas","clima","sistema"][i]==n));["dash","moedas","clima","sistema"].forEach(k=>document.getElementById('tab-'+k).classList.toggle('hidden',k!=n))}
 function toggle(n){state['c'+n+'en']=!state['c'+n+'en'];document.getElementById('sw'+n).classList.toggle('on',state['c'+n+'en']);document.getElementById('sw'+n).nextElementSibling.textContent=state['c'+n+'en']?'Ativada':'Desativada'}
-function fillPairs(){
- let dl=document.getElementById('pairs'); dl.innerHTML=PAIRS.map(p=>`<option value="${p}">`).join('');
- ['chips1','chips2','chips3'].forEach((id,idx)=>{document.getElementById(id).innerHTML=PAIRS.slice(0,12).map(p=>`<div class="chip" onclick="setPair(${idx+1},'${p}')">${p}</div>`).join('')})
-}
+function fillPairs(){for(let i=1;i<=6;i++){let id='chips'+i; if(!document.getElementById(id)) continue; document.getElementById(id).innerHTML=PAIRS.slice(0,12).map(p=>`<div class="chip" onclick="setPair(${i},'${p}')">${p}</div>`).join('')}}
 function setPair(n,p){document.getElementById('c'+n).value=p;onMoedaInput(n)}
 let debounce;
 function onMoedaInput(n){
  clearTimeout(debounce); debounce=setTimeout(()=>previewMoeda(n),350);
- // sugestao
- let v=document.getElementById('c'+n).value.toUpperCase(); let sg=document.getElementById('sg'+n);
+ let v=document.getElementById('c'+n).value.toUpperCase(); let sg=document.getElementById('sg'+n); if(!sg) return;
  if(!v){sg.style.display='none';return}
  let fil=PAIRS.filter(p=>p.includes(v)).slice(0,6); sg.innerHTML=fil.map(p=>`<div onclick="setPair(${n},'${p}')">${p}</div>`).join(''); sg.style.display=fil.length?'block':'none';
 }
 async function previewMoeda(n){
  let pair=document.getElementById('c'+n).value.trim().toUpperCase(); if(!pair||!pair.includes('-')) return;
- if(!PAIRS.includes(pair)) {} // permite custom
  document.getElementById('pv'+n).textContent='buscando...';
  try{
   let r=await fetch('https://economia.awesomeapi.com.br/json/last/'+pair); let j=await r.json();
   let key=pair.replace('-',''); let bid=j[key]?.bid; let ask=j[key]?.ask; let varpct=j[key]?.pctChange;
-  let txt= bid ? `R$ ${bid}  ${ask?' / ask '+ask:''} ${varpct?' ('+varpct+'%)':''}` : 'não encontrado';
+  let txt= bid ? `R$ ${bid} ${varpct?'('+varpct+'%)':''}` : 'não encontrado';
   document.getElementById('pv'+n).textContent=txt;
-  // atualiza dashboard
-  let mp=document.getElementById('moedaPreview'); if(mp) mp.innerHTML+=`<div class="kv"><span>${pair}</span><b>${txt}</b></div>`;
+  let mp=document.getElementById('moedaPreview'); if(mp && n==1) mp.innerHTML=`<div class="kv"><span>${pair}</span><b>${txt}</b></div>`;
  }catch(e){document.getElementById('pv'+n).textContent='erro'}
 }
 async function previewTodasMoedas(){
  document.getElementById('moedaPreview').innerHTML='';
- for(let i=1;i<=3;i++) if(state['c'+i+'en']) await previewMoeda(i);
+ for(let i=1;i<=6;i++) if(state['c'+i+'en']) await previewMoeda(i);
 }
-
-// CLIMA
 async function loadUFs(){
  try{
   let r=await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome'); let j=await r.json();
@@ -261,9 +179,7 @@ async function loadCidades(uf){
  let sel=document.getElementById('citySel'); sel.innerHTML='<option>carregando...</option>';
  try{
   let r=await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`); let j=await r.json();
-  // guarda para filtro
-  window._cidades=j;
-  sel.innerHTML=j.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
+  window._cidades=j; sel.innerHTML=j.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
  }catch(e){sel.innerHTML='<option>erro</option>'}
 }
 function filtrarCidades(){
@@ -271,17 +187,9 @@ function filtrarCidades(){
  let fil= q ? list.filter(c=>c.nome.toLowerCase().includes(q)).slice(0,200) : list.slice(0,200);
  document.getElementById('citySel').innerHTML=fil.map(c=>`<option value="${c.nome}">${c.nome}</option>`).join('');
 }
-function usarCidadeSelecionada(){
- let uf=document.getElementById('uf').value; let city=document.getElementById('citySel').value;
- if(!city){toast('Selecione a cidade',false);return}
- document.getElementById('city').value=city; buscarCidade();
-}
-function fillCaps(){
- document.getElementById('caps').innerHTML=CAPS.map(c=>`<div class="chip" onclick="useCap('${c[0]}',${c[1]},${c[2]})">${c[0].split('-')[0]}</div>`).join('');
-}
-function useCap(name,lat,lon){
- document.getElementById('city').value=name.split('-')[0]; document.getElementById('lat').value=lat; document.getElementById('lon').value=lon; previewClima(); toast('Capital '+name+' selecionada');
-}
+function usarCidadeSelecionada(){let city=document.getElementById('citySel').value; if(!city){toast('Selecione a cidade',false);return} document.getElementById('city').value=city; buscarCidade();}
+function fillCaps(){document.getElementById('caps').innerHTML=CAPS.map(c=>`<div class="chip" onclick="useCap('${c[0]}',${c[1]},${c[2]})">${c[0].split('-')[0]}</div>`).join('')}
+function useCap(name,lat,lon){document.getElementById('city').value=name.split('-')[0]; document.getElementById('lat').value=lat; document.getElementById('lon').value=lon; previewClima(); toast('Capital '+name+' selecionada');}
 async function buscarCidade(){
  let city=document.getElementById('city').value.trim(); if(!city){toast('Digite a cidade',false);return}
  log('Buscando '+city); let r=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(city)+'&count=1&language=pt&format=json'); let j=await r.json();
@@ -301,16 +209,20 @@ async function previewClima(){
   document.getElementById('climaPreview').innerHTML=`<div class="kv"><span>${city}</span><b>${Math.round(t)}° ${desc}</b></div><div style="color:var(--muted);font-size:12px">Lat ${lat} Lon ${lon}</div>`;
  }catch(e){document.getElementById('pdesc').textContent='erro'}
 }
-
-// SAVE / LOAD
+async function scanWifi(){
+ let btn=event.target; let orig=btn.textContent; btn.textContent='🔍 Buscando...'; btn.disabled=true;
+ try{
+  let r=await fetch('/api/scan'); let j=await r.json();
+  let html=j.map(n=>`<div class="wifi-item" onclick="selectWifi('${n.ssid}')"><span>${n.encryption=='open'?'🔓':'🔒'}</span><b>${n.ssid||'(oculta)'}</b><span class="rssi">${n.rssi}dBm ${n.rssi>-60?'▂▄▆█':n.rssi>-70?'▂▄▆':'▂▄'}</span><span style="font-size:11px;color:var(--muted)">${n.encryption}</span></div>`).join('');
+  document.getElementById('wifiList').innerHTML= html || '<div style="color:var(--muted);font-size:12px">Nenhuma rede encontrada</div>';
+  log('Encontradas '+j.length+' redes');
+ }catch(e){toast('Erro scan',false)}
+ btn.textContent=orig; btn.disabled=false;
+}
+function selectWifi(ssid){document.getElementById('ssid').value=ssid; document.getElementById('pass').focus(); toast('Rede '+ssid+' selecionada');}
 async function loadConfig(){
  let r=await fetch('/api/config'); let j=await r.json();
- document.getElementById('c1').value=j.c1; document.getElementById('c2').value=j.c2; document.getElementById('c3').value=j.c3;
- state.c1en=j.c1en; state.c2en=j.c2en; state.c3en=j.c3en;
- document.getElementById('sw1').classList.toggle('on',state.c1en); document.getElementById('sw2').classList.toggle('on',state.c2en); document.getElementById('sw3').classList.toggle('on',state.c3en);
- document.getElementById('sw1').nextElementSibling.textContent=state.c1en?'Ativada':'Desativada';
- document.getElementById('sw2').nextElementSibling.textContent=state.c2en?'Ativada':'Desativada';
- document.getElementById('sw3').nextElementSibling.textContent=state.c3en?'Ativada':'Desativada';
+ for(let i=1;i<=6;i++){let c=document.getElementById('c'+i); if(c) c.value=j['c'+i]||''; state['c'+i+'en']=j['c'+i+'en']; let sw=document.getElementById('sw'+i); if(sw){sw.classList.toggle('on',state['c'+i+'en']); sw.nextElementSibling.textContent=state['c'+i+'en']?'Ativada':'Desativada'}}
  document.getElementById('city').value=j.city; document.getElementById('lat').value=j.lat; document.getElementById('lon').value=j.lon;
  document.getElementById('bright').value=j.bright; document.getElementById('bv').innerText=j.bright; document.getElementById('brightBar').style.width=(j.bright/255*100)+'%';
  document.getElementById('tz').value=j.tz; document.getElementById('dint').value=j.dint; document.getElementById('wint').value=j.wint;
@@ -330,26 +242,23 @@ async function loadData(){
  document.getElementById('wifiBadge').textContent=j.wifi; document.getElementById('wifiBadge').className='badge '+(j.wifi=='Conectado'?'ok':'off');
 }
 async function save(){
- let body={c1:document.getElementById('c1').value.trim().toUpperCase(), c2:document.getElementById('c2').value.trim().toUpperCase(), c3:document.getElementById('c3').value.trim().toUpperCase(),
-  c1en:state.c1en,c2en:state.c2en,c3en:state.c3en, city:document.getElementById('city').value, lat:parseFloat(document.getElementById('lat').value), lon:parseFloat(document.getElementById('lon').value),
-  bright:parseInt(document.getElementById('bright').value), tz:parseInt(document.getElementById('tz').value), dint:parseInt(document.getElementById('dint').value), wint:parseInt(document.getElementById('wint').value),
-  ssid:document.getElementById('ssid').value, pass:document.getElementById('pass').value};
- // valida moedas
- for(let k of ['c1','c2','c3']) if(body[k] && !body[k].includes('-')){toast(k.toUpperCase()+' deve ser ex USD-BRL',false);return}
+ let body={};
+ for(let i=1;i<=6;i++){body['c'+i]=document.getElementById('c'+i).value.trim().toUpperCase(); body['c'+i+'en']=state['c'+i+'en'];}
+ body.city=document.getElementById('city').value; body.lat=parseFloat(document.getElementById('lat').value); body.lon=parseFloat(document.getElementById('lon').value);
+ body.bright=parseInt(document.getElementById('bright').value); body.tz=parseInt(document.getElementById('tz').value); body.dint=parseInt(document.getElementById('dint').value); body.wint=parseInt(document.getElementById('wint').value);
+ body.ssid=document.getElementById('ssid').value; body.pass=document.getElementById('pass').value;
+ for(let i=1;i<=6;i++) if(body['c'+i] && !body['c'+i].includes('-')){toast('Moeda '+i+' deve ser ex USD-BRL',false);return}
  let r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  let j=await r.json(); toast(j.msg); log(j.msg);
  setTimeout(()=>{loadConfig(); loadData();},800);
 }
 async function restart(){ if(confirm('Reiniciar ESP?')){await fetch('/api/restart',{method:'POST'}); toast('Reiniciando...')}}
 function testBlink(){let b=document.getElementById('bright'); let v=parseInt(b.value); fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bright:255})}); setTimeout(()=>fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bright:v})}),800)}
-
-// listeners
 document.getElementById('uf').addEventListener('change',e=>loadCidades(e.target.value));
 document.getElementById('cityInput').addEventListener('input',filtrarCidades);
 document.getElementById('citySel').addEventListener('dblclick',usarCidadeSelecionada);
 document.getElementById('bright').addEventListener('input',e=>{document.getElementById('bv').innerText=e.target.value; document.getElementById('brightBar').style.width=(e.target.value/255*100)+'%';});
-let t;
-document.getElementById('bright').addEventListener('change',e=>{clearTimeout(t); t=setTimeout(()=>fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bright:parseInt(e.target.value)})}).then(()=>toast('Brilho '+e.target.value)),400)});
+let t; document.getElementById('bright').addEventListener('change',e=>{clearTimeout(t); t=setTimeout(()=>fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bright:parseInt(e.target.value)})}).then(()=>toast('Brilho '+e.target.value)),400)});
 fillPairs(); fillCaps(); loadUFs(); loadConfig(); loadData(); setInterval(loadData,5000);
 </script>
 </body>
@@ -365,9 +274,15 @@ void handleGetConfig() {
   doc["c1"] = gConfig.currency_1;
   doc["c2"] = gConfig.currency_2;
   doc["c3"] = gConfig.currency_3;
+  doc["c4"] = gConfig.currency_4;
+  doc["c5"] = gConfig.currency_5;
+  doc["c6"] = gConfig.currency_6;
   doc["c1en"] = gConfig.curr1_enabled;
   doc["c2en"] = gConfig.curr2_enabled;
   doc["c3en"] = gConfig.curr3_enabled;
+  doc["c4en"] = gConfig.curr4_enabled;
+  doc["c5en"] = gConfig.curr5_enabled;
+  doc["c6en"] = gConfig.curr6_enabled;
   doc["city"] = gConfig.city;
   doc["lat"] = gConfig.lat;
   doc["lon"] = gConfig.lon;
@@ -393,15 +308,23 @@ void handlePostConfig() {
     webServer.send(400, "application/json", "{\"msg\":\"json invalido\"}");
     return;
   }
-  int oldCnt = (gConfig.curr1_enabled?1:0)+(gConfig.curr2_enabled?1:0)+(gConfig.curr3_enabled?1:0);
+  int oldCnt = (gConfig.curr1_enabled?1:0)+(gConfig.curr2_enabled?1:0)+(gConfig.curr3_enabled?1:0)+(gConfig.curr4_enabled?1:0)+(gConfig.curr5_enabled?1:0)+(gConfig.curr6_enabled?1:0);
   if (!doc["c1"].isNull()) strlcpy(gConfig.currency_1, doc["c1"], sizeof(gConfig.currency_1));
   if (!doc["c2"].isNull()) strlcpy(gConfig.currency_2, doc["c2"], sizeof(gConfig.currency_2));
   if (!doc["c3"].isNull()) strlcpy(gConfig.currency_3, doc["c3"], sizeof(gConfig.currency_3));
+  if (!doc["c4"].isNull()) strlcpy(gConfig.currency_4, doc["c4"], sizeof(gConfig.currency_4));
+  if (!doc["c5"].isNull()) strlcpy(gConfig.currency_5, doc["c5"], sizeof(gConfig.currency_5));
+  if (!doc["c6"].isNull()) strlcpy(gConfig.currency_6, doc["c6"], sizeof(gConfig.currency_6));
   if (!doc["c1en"].isNull()) gConfig.curr1_enabled = doc["c1en"];
   if (!doc["c2en"].isNull()) gConfig.curr2_enabled = doc["c2en"];
   if (!doc["c3en"].isNull()) gConfig.curr3_enabled = doc["c3en"];
-  int newCnt = (gConfig.curr1_enabled?1:0)+(gConfig.curr2_enabled?1:0)+(gConfig.curr3_enabled?1:0);
+  if (!doc["c4en"].isNull()) gConfig.curr4_enabled = doc["c4en"];
+  if (!doc["c5en"].isNull()) gConfig.curr5_enabled = doc["c5en"];
+  if (!doc["c6en"].isNull()) gConfig.curr6_enabled = doc["c6en"];
+  int newCnt = (gConfig.curr1_enabled?1:0)+(gConfig.curr2_enabled?1:0)+(gConfig.curr3_enabled?1:0)+(gConfig.curr4_enabled?1:0)+(gConfig.curr5_enabled?1:0)+(gConfig.curr6_enabled?1:0);
   if(oldCnt != newCnt) gNeedsRebuild = true;
+  // se trocou par mas cnt igual, força atualização de valores
+  if (!doc["c1"].isNull() || !doc["c2"].isNull() || !doc["c3"].isNull() || !doc["c4"].isNull() || !doc["c5"].isNull() || !doc["c6"].isNull()) gNeedsRebuild = true;
   if (!doc["city"].isNull()) strlcpy(gConfig.city, doc["city"], sizeof(gConfig.city));
   if (!doc["lat"].isNull()) gConfig.lat = doc["lat"];
   if (!doc["lon"].isNull()) gConfig.lon = doc["lon"];
@@ -458,6 +381,22 @@ void handleGetData() {
   webServer.send(200, "application/json", out);
 }
 
+void handleScan() {
+  int n = WiFi.scanNetworks();
+  JsonDocument doc;
+  JsonArray arr = doc.to<JsonArray>();
+  for(int i=0;i<n;i++){
+    JsonObject o = arr.add<JsonObject>();
+    o["ssid"] = WiFi.SSID(i);
+    o["rssi"] = WiFi.RSSI(i);
+    o["encryption"] = WiFi.encryptionType(i)==WIFI_AUTH_OPEN ? "open" : "wpa";
+    o["channel"] = WiFi.channel(i);
+  }
+  String out; serializeJson(arr,out);
+  webServer.send(200,"application/json",out);
+  WiFi.scanDelete();
+}
+
 void handleRestart() {
   webServer.send(200, "application/json", "{\"msg\":\"reiniciando...\"}");
   delay(500);
@@ -473,6 +412,7 @@ void webServerInit() {
   webServer.on("/api/config", HTTP_GET, handleGetConfig);
   webServer.on("/api/config", HTTP_POST, handlePostConfig);
   webServer.on("/api/data", HTTP_GET, handleGetData);
+  webServer.on("/api/scan", HTTP_GET, handleScan);
   webServer.on("/api/restart", HTTP_POST, handleRestart);
   webServer.onNotFound(handleNotFound);
   webServer.begin();
