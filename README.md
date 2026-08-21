@@ -1,6 +1,6 @@
 # Painel Financeiro — ESP32-8048S070 (7" 800×480) + LVGL + WebServer + OTA
 
-Painel em tempo real para **ESP32-S3 8048S070 7" RGB 800×480** com LovyanGFX + LVGL 8.3, WebServer de configuração, WiFiManager com scan, clima e câmbio ao vivo, e **OTA automático via GitHub Releases + GitHub Actions**. Projetado para ser **reutilizável em outros projetos**: copie `src/app_config.*`, `src/LGFX_ESP32_8048S070.h`, `src/web_server.*`, `src/ota_updater.*` e `src/version.h`.
+Painel em tempo real para **ESP32-S3 8048S070 7" RGB 800×480** com LovyanGFX + LVGL 8.3, WebServer de configuração, WiFiManager com scan, clima e câmbio ao vivo, e **OTA automático via GitHub Releases + GitHub Actions** (auto-update em task dedicada, com fallback sem API e tolerante a rate-limit). Projetado para ser **reutilizável em outros projetos**: copie `src/app_config.*`, `src/LGFX_ESP32_8048S070.h`, `src/web_server.*`, `src/ota_updater.*` e `src/version.h`.
 
 ![ESP32-8048S070](https://img.shields.io/badge/board-ESP32--8048S070-yellow?style=flat)
 ![LVGL](https://img.shields.io/badge/LVGL-8.3-blue)
@@ -17,7 +17,8 @@ Painel em tempo real para **ESP32-S3 8048S070 7" RGB 800×480** com LovyanGFX + 
 - [WiFi Manager](#wifimanager-implementado)
 - [WebServer](#webserver)
 - [Configurações do Display](#configurações-do-display)
-- [OTA Update com GitHub Actions](#ota-updated-com-github-actions)
+- [OTA Update com GitHub Actions](#ota-update-com-github-actions)
+- [Troubleshooting OTA](#troubleshooting-ota)
 - [API](#api)
 - [Reutilizando em Outros Projetos](#reutilizando-em-outros-projetos)
 - [Troubleshooting Display](#troubleshooting-display)
@@ -35,7 +36,7 @@ Painel em tempo real para **ESP32-S3 8048S070 7" RGB 800×480** com LovyanGFX + 
 | **WebServer** | SPA em `PROGMEM` com tabs `Dashboard/Moedas/Clima/Sistema`, `IBGE 5570 municípios`, `AwesomeAPI` + `Open-Meteo` com preview ao vivo, `/api/*` |
 | **Clima** | `Open-Meteo` por `lat/lon`, busca `IBGE estados→municípios` + 27 capitais 1-clique + geocoding, preview `°C` antes de salvar |
 | **Câmbio** | Até 6 pares `AwesomeAPI` `USD-BRL,EUR-BRL,BTC-BRL...` request único `json/last/`, BTC cabe com fonte adaptativa (`R$ 401k`), metade da tela `3×2` |
-| **OTA** | Check `api.github.com/repos/<user>/<repo>/releases/latest`, compara `FIRMWARE_VERSION_CODE`, download `browser_download_url` `.bin` via `Update`, auto a cada `6h` + manual no WebServer |
+| **OTA** | Check `api.github.com/repos/<user>/<repo>/releases/latest` com fallback por redirect (sem rate-limit), compara `FIRMWARE_VERSION_CODE`, download `browser_download_url` `.bin` via `Update` em **task FreeRTOS dedicada (32KB)**, auto-update ~30s + manual no WebServer |
 | **GitHub Action** | `pio run` → `firmware.bin` → `firmware-v*.*.*.bin` + `firmware-latest.bin` → `action-gh-release` em tags `v*.*.*` |
 
 ---
@@ -71,10 +72,9 @@ ESP32/
 │   ├── lv_conf.h                # LVGL 8.3 config (COLOR_DEPTH 16, fonts 12/14/16/20/24/32/48)
 │   ├── app_config.h/.cpp        # Preferences NVS: moedas(6), cidade/lat/lon, brilho, fuso, intervalos, display_light
 │   ├── web_server.h/.cpp        # WebServer :80, SPA PROGMEM, /api/*, WiFi scan, mirror
-│   ├── ota_updater.h/.cpp       # GitHub Releases check + Update
-│   └── version.h                # FIRMWARE_VERSION "1.1.0" / CODE 110
+│   ├── ota_updater.h/.cpp       # GitHub Releases check + Update (task 32KB, auto)
+│   └── version.h                # FIRMWARE_VERSION "2.0.7" / CODE 207
 ├── .github/workflows/build-release.yml
-└── 7.0inch_ESP32-8048S070/      # demos Sunton
 ```
 
 ---
@@ -97,7 +97,7 @@ pio device monitor --port COM5 --baud 115200
 ### 3. Primeiro boot
 - Log: `[Config] carregado` → `[WiFi] Conectando em 'ROBOBUILDERS' ...` → `WiFi conectado! IP: 192.168.1.57`
 - Se falhar: `Falha WiFi - iniciando AP "Painel-Config" 12345678` → conecte e acesse `http://192.168.4.1/`
-- Tela mostra `PAINEL FINANCEIRO`, `10:15:57`, `24° São Paulo`, `R$ 5,18` e footer `v1.1.0`
+- Tela mostra `PAINEL FINANCEIRO`, `10:15:57`, `24° São Paulo`, `R$ 5,18` e footer `v2.0.7`
 
 ---
 
@@ -220,44 +220,56 @@ lv_color_t colText = light? 0x0F172A : 0xF8FAFC;
 
 ---
 
-## OTA Updated com GitHub Actions
+## OTA Update com GitHub Actions
 
 ### Visão
 
 ```
-git tag v1.2.0 && git push origin v1.2.0
-  → GitHub Action pio run → firmware-v1.2.0.bin → Release
-  → ESP a cada 6h GET api.github.com/repos/antony1727/ESTAGIO-/releases/latest
-  → se latest_code > FIRMWARE_VERSION_CODE → baixa browser_download_url .bin → Update → restart
-  → WebServer Sistema → OTA card mostra progresso
+git tag v2.0.7 && git push origin v2.0.7
+  → GitHub Action pio run → firmware-v2.0.7.bin → Release automática
+  → ESP verifica release (API com fallback por redirect, tolerante a rate-limit 403)
+  → se latest_code > FIRMWARE_VERSION_CODE → baixa .bin em task dedicada → Update → restart
+  → auto-update ~30s após detectar nova versão + manual no WebServer
 ```
 
 ### Versão (`src/version.h`)
 
 ```cpp
-#define FIRMWARE_VERSION "1.1.0"
-#define FIRMWARE_VERSION_CODE 110 // 1.1.0
+#define FIRMWARE_VERSION "2.0.7"
+#define FIRMWARE_VERSION_CODE 207 // 2.0.7 = 207
 #define GITHUB_REPO "antony1727/ESTAGIO-"
 #define GITHUB_API_LATEST "https://api.github.com/repos/antony1727/ESTAGIO-/releases/latest"
 ```
 
-Incremente `FIRMWARE_VERSION` + `CODE` (`1.1.0→1.2.0 = 120`) a cada release. `CODE = maj*100+min*10+pat`.
+Incremente `FIRMWARE_VERSION` + `CODE` (`2.0.6→2.0.7 = 207`) a cada release. `CODE = maj*100+min*10+pat`.
+
+> ⚠️ **Regra de ouro:** a tag do release (ex: `v2.0.7`) deve ser **sempre maior** que o `FIRMWARE_VERSION_CODE` rodando no ESP. Se forem iguais, o ESP entende `latest == current` e não atualiza (log `ja atualizado`).
 
 ### Updater (`src/ota_updater.h/.cpp`)
 
-- `otaInit()` loga versão.
-- `otaCheck()` `HTTPClient` `User-Agent: ESP32-OTA` `GET GITHUB_API_LATEST` → `tag_name` → `normalizeVersion()` → `versionToCode()` → compara `>FIRMWARE_VERSION_CODE` → pega `assets[*.bin].browser_download_url` → `gOta = {latest, downloadUrl, state OTA_NO_UPDATE, error}`.
-- `otaUpdate()` → `HTTPClient.setFollowRedirects(FORCE)` `GET downloadUrl` → `Update.begin(len)` → `Update.write(buff 4KB)` → `gOta.progress` → `Update.end(true)` → `ESP.restart()`. Estados `OTA_CHECKING/UPDATING/SUCCESS/FAILED`.
+- `otaInit()` loga versão e **cria a task FreeRTOS `ota_task` com 32KB de stack** (core 0, prioridade 1).
+- `otaCheck()` — chamado por timers (15s pós-boot + a cada 6h):
+  1. Tenta `GET GITHUB_API_LATEST` com `User-Agent: ESP32-OTA` + `Accept: application/vnd.github+json`;
+  2. Se `200`: extrai `tag_name` e o primeiro `assets[*].browser_download_url` terminado em `.bin`;
+  3. Se `403` (rate-limit da API sem token): **fallback `checkViaRedirect()`** — `GET https://github.com/<repo>/releases/latest` sem seguir redirect (`HTTPC_DISABLE_FOLLOW_REDIRECTS`) e extrai a tag da `Location` (`/tag/vX.Y.Z`). Isso **não sofre rate-limit** da API;
+  4. Se a API não forneceu URL do asset, monta a padrão: `https://github.com/<repo>/releases/download/<tag>/firmware-<tag>.bin`;
+  5. Converte `tag → code` via `versionToCode()` e compara com `FIRMWARE_VERSION_CODE`;
+  6. `latest > current` → `return true` (update disponível), senão `false` (`ja atualizado`).
+- `otaUpdate()` é wrapper de `otaUpdateUrl(url)`: `HTTPClient.setFollowRedirects(FORCE)` `GET downloadUrl` → `Update.begin(len)` → `Update.write(buff 4KB)` com `gOta.progress` → `Update.end(true)` → `ESP.restart()`. Estados `OTA_CHECKING/UPDATING/SUCCESS/FAILED`.
+- `otaRequestUpdate()` captura `downloadUrl` **no momento do agendamento** (cópia `sOtaUrl`) e sinaliza a task — assim um `otaCheck()` concorrente que limpa `gOta.downloadUrl` não quebra o download.
+- `otaUpdateUrl()` roda na `ota_task` (background), com `esp_task_wdt_reset()` durante o download e `http.setTimeout(20000)`.
 
 ### GitHub Action (`.github/workflows/build-release.yml`)
 
 ```yaml
+name: Build and Release Firmware
 on:
   push:
     branches: [main]
     tags: ['v*.*.*']
-    paths: ['src/**','platformio.ini','.github/workflows/**']
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -266,58 +278,103 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.11'}
       - run: pip install platformio
-      - run: pio run -e esp32-8048s070 && cp .pio/.../firmware.bin firmware-${{github.ref_name}}.bin
+      - run: pio run -e esp32-8048s070
+      - run: cp .pio/build/esp32-8048s070/firmware.bin firmware-${{github.ref_name}}.bin && cp ... firmware-latest.bin
       - uses: actions/upload-artifact@v4
+        with: {name: firmware-bin, path: firmware-*.bin}
       - if: startsWith(github.ref,'refs/tags/v')
         uses: softprops/action-gh-release@v2
-        with: {files: firmware-*.bin, generate_release_notes: true}
+        with:
+          files: |
+            firmware-*.bin
+            firmware-latest.bin
+          generate_release_notes: true
 ```
 
 - Push em `main` só builda + `upload-artifact` (preview).
-- `git tag v1.2.0` → `Release` com `.bin` que o `ESP` busca.
+- `git tag v2.0.7` → `Release` com `firmware-v2.0.7.bin` + `firmware-latest.bin` que o `ESP` busca.
 
 ### WebServer OTA (auto + manual)
 
-- `src/web_server.cpp:360` card `ATUALIZAÇÃO OTA` com `Versão atual / Última / Status` `otaBar` + `🔍 Verificar` `POST /api/ota/check` + `⬇️ Atualizar agora` `POST /api/ota/update` + texto `Auto a cada 6h.`
-- Endpoints `src/web_server.cpp:458`:
+- Card `ATUALIZAÇÃO OTA` com `Versão atual / Última / Status` `otaBar` + `🔍 Verificar` `POST /api/ota/check` + `⬇️ Atualizar agora` `POST /api/ota/update`.
+- Endpoints:
   - `GET /api/version` → `{current,latest,state,progress,error,url,dlight}`
   - `POST /api/ota/check` → `otaCheck()` → `{hasUpdate,latest,msg,state}`
-  - `POST /api/ota/update` → `otaUpdate()` (envia `{"msg":"iniciando..."}` antes e dá `delay 200`)
-- `src/main.cpp:622` timers: `15s` após boot + `6h` periódico `otaCheck(true)` + timer `30s` loga se `latest > current`.
+  - `POST /api/ota/update` → `otaRequestUpdate()` → `{msg,ok}` — **responde na hora** e o download roda na `ota_task` em background (sem travar o webserver)
+- Timers em `src/main.cpp`: `15s` pós-boot `otaCheck(true)`, `6h` periódico, e `30s` auto-update: se `latest > current` → `otaRequestUpdate()` (baixa sozinho).
 
 ### Como lançar OTA (fluxo com tag — sempre `add` → `commit` → `push`)
 
 > **Regra:** `push` em `main` só gera `artifact` em `Actions` (preview `firmware-main.bin`). Para ir para `Releases` e o `ESP` atualizar via `OTA`, **tem que ser com `tag` `v*.*.*`**.
 
 ```bash
-# 1. bump versão no firmware (evita loop: tag deve ser > FIRMWARE_VERSION_CODE)
+# 1. bump versão no firmware (tag deve ser > FIRMWARE_VERSION_CODE rodando no ESP)
 # edite src/version.h:
-#   #define FIRMWARE_VERSION "1.2.0"
-#   #define FIRMWARE_VERSION_CODE 120  // 1.2.0 = 120
+#   #define FIRMWARE_VERSION "2.0.7"
+#   #define FIRMWARE_VERSION_CODE 207  // 2.0.7 = 207
 
 # 2. sempre add + commit + push (obrigatório)
 git add src/version.h
-git commit -m "chore: bump 1.2.0"
+git commit -m "chore: bump 2.0.7"
 git push origin main
 
 # 3. crie a tag que dispara o Release (mesma versão do passo 1)
-git tag v1.2.0
-git push origin v1.2.0   # <-- este push cria o Release
+git tag v2.0.7
+git push origin v2.0.7   # <-- este push cria o Release
 
 # 4. acompanhe: https://github.com/antony1727/ESTAGIO-/actions
 #    → workflow "Build and Release Firmware" verde
-#    → https://github.com/antony1727/ESTAGIO-/releases → firmware-v1.2.0.bin + firmware-latest.bin
+#    → https://github.com/antony1727/ESTAGIO-/releases → firmware-v2.0.7.bin + firmware-latest.bin
 
-# 5. ESP busca automaticamente a cada 6h (ou 15s após boot)
+# 5. ESP busca automaticamente (15s pós-boot, 6h, e auto-update ~30s)
 #    ou manual: WebServer → Sistema → OTA → 🔍 Verificar → ⬇️ Atualizar agora → barra 0-100% → restart auto
-#    Footer do display já mostra v1.2.0
+#    Footer do display já mostra v2.0.7
 ```
 
 **Dica:** se esquecer o `push` da tag, o `.bin` fica só em `Actions → Artifacts` (30 dias) e **não** vai para `Releases`, o `OTA` não encontra. Sempre faça `git push origin vX.Y.Z` após `git tag`.
 
-Teste manual sem tag (só artifact): `git push origin main` → `Actions` → baixe `firmware-bin` → `curl -F file=@firmware.bin http://IP/update` (se implementar) ou grave via `COM5`.
+Log de sucesso no Serial Monitor (115200):
 
-Teste manual: `curl -X POST http://192.168.1.57/api/ota/check` e `curl -X POST http://192.168.1.57/api/ota/update`.
+```
+[OTA] atual=2.0.6 (206) latest=2.0.7 (207)
+[OTA] url=https://github.com/antony1727/ESTAGIO-/releases/download/v2.0.7/firmware-v2.0.7.bin
+[OTA] Atualizacao disponivel: v2.0.7
+[OTA] auto update disponivel, baixando em background...
+[OTA] iniciando download https://github.com/.../firmware-v2.0.7.bin
+[OTA] tamanho 1504336
+[OTA] 56607/1504336 (3%)
+...
+[OTA] 1494303/1504336 (99%)
+[OTA] sucesso, reiniciando...
+→ após restart: [OTA] versao atual 2.0.7 (207) / [OTA] ja atualizado
+```
+
+---
+
+## Troubleshooting OTA
+
+Todo o conhecimento obtido em campo (com Monitor Serial 115200) — consulte os logs para identificar cada caso.
+
+| Sintoma no Monitor | Causa | Fix |
+|---|---|---|
+| `Guru Meditation ... Stack canary watchpoint triggered (ota_task)` e reboot **no meio do download** | **Stack 8KB insuficiente** na task: `HTTPClient` + `WiFiClient` + buffer 4KB estouram a stack | Aumentar stack da task para **32KB** (`xTaskCreatePinnedToCore(..., 32768, ...)`) — `ota_updater.cpp:otaInit` |
+| `reboot`/`rst:0xc` ao clicar "Atualizar agora", sem progresso | **Task WDT**: download rodando **dentro do handler do webserver** bloqueia a loopTask > 5s → watchdog reseta | Update em **task FreeRTOS dedicada**; o handler só agenda (`otaRequestUpdate()`) e responde imediatamente |
+| `[OTA] sem URL, faca Verificar antes` (download nunca inicia) | **Race condition**: `otaCheck()` periódico (15s/6h) limpa `gOta.downloadUrl` enquanto a task ia baixar | Capturar a URL **no agendamento** (`otaRequestUpdate()` salva cópia `sOtaUrl`) e passá-la para `otaUpdateUrl(url)` |
+| `API HTTP 403` + `"API rate limit exceeded"` | **Rate-limit da api.github.com** (60 req/h sem token, por IP) | Já tratado: `checkViaRedirect()` usa `github.com/<repo>/releases/latest` com redirect manual — **não sofre rate-limit**. Verificar funciona mesmo com 403 |
+| `[OTA] download falha -1` / `SSL - Memory allocation failed` (WiFiClientSecure) | Falha transitória de **memória heap** (TLS) durante download (UI LVGL usa bastante RAM) | Retry automático (próximo timer 30s tenta de novo) — em produção acabou funcionando na 2ª tentativa |
+| `[OTA] download HTTP 404` | URL do asset errada ou release sem o `.bin` (tag não pushada ou build falhou) | Confirmar `firmware-vX.Y.Z.bin` na Release; há fallback automático para `firmware-latest.bin` |
+| `[OTA] ja atualizado` mesmo com release nova | **Tag/release igual ou menor** que o `FIRMWARE_VERSION_CODE` do ESP (ex: ESP em 207 e release v2.0.7) | Bump corretamente: a release precisa ser **maior** que a versão gravada no ESP; cada release exige `version.h` atualizado + tag `v*.*.*` nova |
+| Release não aparece no GitHub (só artifact) | Tag **não foi pushada** — push em `main` só gera artifact | `git tag vX.Y.Z && git push origin vX.Y.Z` — o **push da tag** é o gatilho do `softprops/action-gh-release` |
+| `fallback: redirect sem /tag/` | Link de release sem padrão `/tag/` na Location (release de volume/página) | Confirmar que a release é pública; funciona com releases normais `v*.*.*` |
+
+### Decisões de arquitetura aprendidas
+
+1. **Nunca rode o download OTA no handler do webserver** — bloqueia a loopTask e mata o Task WDT (5s). Sempre task dedicada.
+2. **A task de update precisa de stack generosa (32KB)** — `HTTPClient` + `WiFiClient` + buffers explodem 8KB (stack canary panic).
+3. **URL do download deve ser capturada no momento do agendamento** — checks periódicos limpam o estado global `gOta`.
+4. **API do GitHub sem token tem rate-limit de 60 req/h por IP** — o fallback por redirect de `github.com/<repo>/releases/latest` é infinito e rápido.
+5. **Comparação por código numérico** (`maj*100+min*10+pat`), nunca por string — `v2.0.10 > v2.0.9` não seria detectado como string.
+6. **Cada release precisa de `version.h` bumpado + tag única** — senão o ESP entende que já está atualizado.
 
 ---
 
