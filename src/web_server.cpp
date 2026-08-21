@@ -63,6 +63,9 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 .wifi-item:hover{border-color:var(--accent)}
 .wifi-item b{flex:1}
 .rssi{font-size:11px;color:var(--muted)}
+#mirrorWrap{transition:.3s}
+@media(max-width:900px){#mirrorScreen{transform:scale(0.6);margin:-96px 0} #mirrorWrap{height:320px}}
+@media(max-width:600px){#mirrorScreen{transform:scale(0.38);margin:-148px 0} #mirrorWrap{height:220px}}
 </style>
 </head>
 <body>
@@ -95,6 +98,27 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
   <h2>PRÉVIA CLIMA</h2>
   <div id="climaPreview">Selecione a cidade para ver</div>
   <button class="btn-dark" onclick="previewClima()">👁️ Ver agora</button>
+ </div>
+ <div class="card accent" style="grid-column:1/-1">
+  <div style="display:flex;align-items:center;gap:10px">
+   <h2 style="margin:0">🖥️ ESPELHAMENTO DA TELA</h2>
+   <span style="font-size:11px;color:var(--muted)">tempo real</span>
+   <button class="btn-dark" style="margin-left:auto;width:auto;padding:6px 12px;font-size:12px" onclick="toggleMirror()" id="mirrorBtn">👁️ Esconder</button>
+  </div>
+  <div id="mirrorWrap" style="margin-top:12px;display:flex;justify-content:center;background:#000;padding:14px;border-radius:16px;border:2px solid #d4a017;box-shadow:0 0 0 4px #8c6b00 inset">
+   <div id="mirrorScreen" style="width:800px;max-width:100%;height:480px;background:linear-gradient(180deg,#070A12,#0E1420);border:4px solid #333;border-radius:8px;overflow:hidden;transform-origin:top center;position:relative">
+    <div style="height:28px;background:#06080D;border-bottom:1px solid #1E2A3A;display:flex;align-items:center;padding:0 10px;gap:8px">
+     <div style="width:4px;height:18px;background:#22D3EE;border-radius:2px"></div>
+     <span style="font-size:10px;font-weight:800;letter-spacing:1px">PAINEL FINANCEIRO</span>
+     <span id="mTime" style="margin-left:auto;font-size:10px;color:#7A8699">--:--:--</span>
+     <span id="mIp" style="font-size:8px;color:var(--green)">IP: --</span>
+    </div>
+    <div id="mBody" style="padding:10px;display:grid;gap:8px;height:calc(100% - 28px);align-content:start">
+     <!-- preenchido via JS -->
+    </div>
+   </div>
+  </div>
+  <small style="color:var(--muted)">Réplica fiel do display 7" — atualiza a cada 2s. Clique no 👁️ para esconder.</small>
  </div>
 </div>
 
@@ -229,6 +253,29 @@ async function loadConfig(){
  document.getElementById('ssid').value=j.ssid; document.getElementById('ipBadge').textContent='IP: '+j.ip; document.getElementById('about').innerHTML=`<div class="kv"><span>IP</span><b>${j.ip}</b></div><div class="kv"><span>SSID</span><b>${j.ssid}</b></div><div class="kv"><span>Lat/Lon</span><b>${j.lat}, ${j.lon}</b></div>`;
  log('Config carregado'); previewTodasMoedas(); previewClima();
 }
+function toggleMirror(){let w=document.getElementById('mirrorWrap'); let b=document.getElementById('mirrorBtn'); if(w.style.display==='none'){w.style.display='flex'; b.textContent='👁️ Esconder'} else {w.style.display='none'; b.textContent='👁️ Mostrar'}}
+function updateMirror(j){
+ let m=document.getElementById('mBody'); if(!m) return;
+ document.getElementById('mTime').textContent=j.time; document.getElementById('mIp').textContent='IP: '+j.ip;
+ // moedas atuais do /api/data só traz primeira, busca config para todas
+ let cnt=0; try{cnt=(state.c1en?1:0)+(state.c2en?1:0)+(state.c3en?1:0)+(state.c4en?1:0)+(state.c5en?1:0)+(state.c6en?1:0)}catch(e){cnt=1}
+ if(cnt>3){
+   m.style.gridTemplateColumns='340px 1fr'; m.style.gridTemplateRows='140px 148px';
+   m.innerHTML=`<div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:12px;padding:10px;grid-row:1/3;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:3px solid #22D3EE"><div style="font-size:9px;letter-spacing:2px;color:#22D3EE">HORARIO LOCAL</div><div style="font-size:28px;font-weight:900;color:#F8FAFC;margin:8px 0">${j.time}</div><div style="font-size:11px;color:#7A8699">${j.date}</div></div>
+   <div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:12px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:3px solid #FFB300"><div style="font-size:9px;letter-spacing:2px;color:#FFB300">CLIMA</div><div style="font-size:11px;color:#7A8699">${j.city}</div><div style="font-size:22px;font-weight:900;color:#FFB300">${j.weatherTemp}</div><div style="font-size:11px;color:#7A8699">${j.weatherDesc}</div></div>
+   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"><div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:10px;padding:6px;text-align:center;border-top:2px solid #00E676"><div style="font-size:8px;color:#00E676">${document.getElementById('c1')?.value||'USD-BRL'}</div><div style="font-size:10px;font-weight:800;color:#00E676;margin-top:4px">${j.dolar}</div></div><div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:10px;padding:6px;text-align:center;border-top:2px solid #2979FF"><div style="font-size:8px;color:#2979FF">${document.getElementById('c2')?.value||'EUR-BRL'}</div><div style="font-size:10px;font-weight:800;color:#2979FF">R$ --</div></div><div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:10px;padding:6px;text-align:center;border-top:2px solid #FFAB00"><div style="font-size:8px;color:#FFAB00">${document.getElementById('c3')?.value||'BTC-BRL'}</div><div style="font-size:10px;font-weight:800;color:#FFAB00">R$ --</div></div><div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:10px;padding:6px;text-align:center;border-top:2px solid #FF4081"><div style="font-size:8px;color:#FF4081">${document.getElementById('c4')?.value||'ETH-BRL'}</div><div style="font-size:10px;color:#FF4081">R$ --</div></div><div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:10px;padding:6px;text-align:center;border-top:2px solid #E040FB"><div style="font-size:8px;color:#E040FB">${document.getElementById('c5')?.value||'GBP-BRL'}</div><div style="font-size:10px;color:#E040FB">R$ --</div></div><div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:10px;padding:6px;text-align:center;border-top:2px solid #18FFFF"><div style="font-size:8px;color:#18FFFF">${document.getElementById('c6')?.value||'JPY-BRL'}</div><div style="font-size:10px;color:#18FFFF">R$ --</div></div></div>`;
+ } else {
+   m.style.gridTemplateColumns=''; m.style.gridTemplateRows='';
+   m.style.display='grid'; m.style.gridTemplateColumns=`repeat(${2+cnt},1fr)`;
+   let html=`<div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:12px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:3px solid #22D3EE"><div style="font-size:9px;letter-spacing:2px;color:#22D3EE">HORARIO LOCAL</div><div style="font-size:22px;font-weight:900;color:#F8FAFC;margin:8px 0">${j.time}</div><div style="font-size:11px;color:#7A8699">${j.date}</div></div>`;
+   html+=`<div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:12px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:3px solid #FFB300"><div style="font-size:9px;letter-spacing:2px;color:#FFB300">CLIMA</div><div style="font-size:11px;color:#7A8699">${j.city}</div><div style="font-size:18px;font-weight:900;color:#FFB300">${j.weatherTemp}</div><div style="font-size:11px;color:#7A8699">${j.weatherDesc}</div></div>`;
+   let colors=['#00E676','#2979FF','#FFAB00','#FF4081','#E040FB','#18FFFF'];
+   let pairs=[document.getElementById('c1')?.value||'USD-BRL',document.getElementById('c2')?.value||'EUR-BRL',document.getElementById('c3')?.value||'BTC-BRL',document.getElementById('c4')?.value||'ETH-BRL',document.getElementById('c5')?.value||'GBP-BRL',document.getElementById('c6')?.value||'JPY-BRL'];
+   let idx=0;
+   for(let i=0;i<6 && idx<cnt;i++){ if(!state['c'+(i+1)+'en']) continue; html+=`<div style="background:#0F1622;border:1px solid #1E2A3A;border-radius:12px;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-top:3px solid ${colors[i]}"><div style="font-size:8px;color:${colors[i]}">${pairs[i]}</div><div style="font-size:${pairs[i].includes('BTC')? '14px':'16px'};font-weight:900;color:${colors[i]};margin:6px 0">${idx==0? j.dolar : 'R$ --'}</div><div style="font-size:9px;color:#5A6A80">${pairs[i].replace('-',' / ')}</div></div>`; idx++; }
+   m.innerHTML=html;
+ }
+}
 async function loadData(){
  let r=await fetch('/api/data'); let j=await r.json();
  document.getElementById('live').innerHTML=`
@@ -240,6 +287,7 @@ async function loadData(){
   <div class="kv"><span>Heap</span><b>${j.heap}</b></div>`;
  document.getElementById('ipBadge').textContent='IP: '+j.ip;
  document.getElementById('wifiBadge').textContent=j.wifi; document.getElementById('wifiBadge').className='badge '+(j.wifi=='Conectado'?'ok':'off');
+ updateMirror(j);
 }
 async function save(){
  let body={};
