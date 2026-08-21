@@ -16,6 +16,7 @@ extern OtaInfo gOta;
 void otaInit();
 bool otaCheck(bool showLog = true); // verifica se há release mais novo
 bool otaUpdate(); // baixa e grava (chamado após check) - roda em task background
+bool otaUpdateUrl(String url); // baixa e grava de uma URL especifica
 void otaRequestUpdate(); // agenda o update em background (nao bloqueia o webserver)
 String otaGetCurrentVersion();
 void otaLoop(); // para uso futuro com timer

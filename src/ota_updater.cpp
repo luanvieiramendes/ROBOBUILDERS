@@ -13,13 +13,16 @@ OtaInfo gOta;
 static TaskHandle_t sOtaTaskHandle = NULL;
 static volatile bool sOtaRequested = false;
 static volatile bool sOtaBusy = false;
+static String sOtaUrl = ""; // URL capturada no momento do agendamento (imune a otaCheck limpar gOta.downloadUrl)
 
 static void otaTask(void *param){
   // task dedicada: sem WDT da loopTask, download pode demorar
   for(;;){
     if(sOtaRequested){
       sOtaRequested = false;
-      otaUpdate();
+      String url = sOtaUrl;
+      sOtaUrl = "";
+      otaUpdateUrl(url); // usa a URL capturada no agendamento
       sOtaBusy = false;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -50,9 +53,10 @@ void otaInit(){
 }
 
 void otaRequestUpdate(){
-  if(!sOtaBusy){
+  if(!sOtaBusy && gOta.downloadUrl.length()>0){
+    sOtaUrl = gOta.downloadUrl; // captura a URL AGORA; otaCheck nao consegue mais limpar
     sOtaBusy = true;
-    sOtaRequested = true; // task em background executa otaUpdate()
+    sOtaRequested = true; // task em background executa o update
   }
 }
 
@@ -203,7 +207,11 @@ bool otaCheck(bool showLog){
 }
 
 bool otaUpdate(){
-  String url = gOta.downloadUrl; // copia local: imune a otaCheck() concorrente limpar a URL
+  // chamada direta (ex: manual): usa a URL do ultimo check
+  return otaUpdateUrl(gOta.downloadUrl);
+}
+
+bool otaUpdateUrl(String url){
   if(url.length()==0){
     gOta.error = "sem URL, faca Verificar antes";
     gOta.state = OTA_FAILED;
