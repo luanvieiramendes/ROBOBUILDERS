@@ -625,9 +625,8 @@ void setup() {
         int cur = FIRMWARE_VERSION_CODE;
         String tag = gOta.latest; tag.replace("v",""); int maj=0,min=0,pat=0; sscanf(tag.c_str(),"%d.%d.%d",&maj,&min,&pat); int latest = maj*100+min*10+pat;
         if(latest > cur){
-          Serial.println("[OTA] auto update disponivel, aguardando comando web ou auto apos 30s");
-          // auto: descomente para atualizar sozinho
-          // otaUpdate();
+          Serial.println("[OTA] auto update disponivel, baixando em background...");
+          otaRequestUpdate(); // agenda download na task dedicada (nao bloqueia)
         }
       }
     }, 30000, NULL);
