@@ -1,7 +1,8 @@
+#pragma once
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
-#include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 #include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
+#include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 #include <driver/i2c.h>
 
 class LGFX : public lgfx::LGFX_Device {
@@ -22,35 +23,48 @@ public:
       cfg.offset_y = 0;
       _panel_instance.config(cfg);
     }
+
     {
       auto cfg = _panel_instance.config_detail();
       cfg.use_psram = 1;
       _panel_instance.config_detail(cfg);
     }
+
     {
       auto cfg = _bus_instance.config();
       cfg.panel = &_panel_instance;
+      
+      // Blue pins (B0-B4)
       cfg.pin_d0 = GPIO_NUM_15;
       cfg.pin_d1 = GPIO_NUM_7;
       cfg.pin_d2 = GPIO_NUM_6;
       cfg.pin_d3 = GPIO_NUM_5;
       cfg.pin_d4 = GPIO_NUM_4;
+      
+      // Green pins (G0-G5)
       cfg.pin_d5 = GPIO_NUM_9;
       cfg.pin_d6 = GPIO_NUM_46;
       cfg.pin_d7 = GPIO_NUM_3;
       cfg.pin_d8 = GPIO_NUM_8;
       cfg.pin_d9 = GPIO_NUM_16;
       cfg.pin_d10 = GPIO_NUM_1;
+      
+      // Red pins (R0-R4)
       cfg.pin_d11 = GPIO_NUM_14;
       cfg.pin_d12 = GPIO_NUM_21;
       cfg.pin_d13 = GPIO_NUM_47;
       cfg.pin_d14 = GPIO_NUM_48;
       cfg.pin_d15 = GPIO_NUM_45;
+      
+      // Sync & Clock
       cfg.pin_henable = GPIO_NUM_41;
       cfg.pin_vsync = GPIO_NUM_40;
       cfg.pin_hsync = GPIO_NUM_39;
       cfg.pin_pclk = GPIO_NUM_42;
       cfg.freq_write = 12000000;
+
+      // Timing B - Lovyan community para 8048S070 (usado no seu HEAD original que gerou a foto sem rolagem)
+      // Se este der wash mas sem varredura top-bottom, ajustamos brilho; se ainda varrer, invert pclk
       cfg.hsync_polarity = 0;
       cfg.hsync_front_porch = 8;
       cfg.hsync_pulse_width = 2;
@@ -68,6 +82,8 @@ public:
       auto cfg = _light_instance.config();
       cfg.pin_bl = GPIO_NUM_2;
       cfg.invert = false;
+      cfg.freq = 44100;
+      cfg.pwm_channel = 7;
       _light_instance.config(cfg);
     }
     _panel_instance.light(&_light_instance);
@@ -75,17 +91,18 @@ public:
     {
       auto cfg = _touch_instance.config();
       cfg.x_min = 0;
+      cfg.x_max = 800;
       cfg.y_min = 0;
+      cfg.y_max = 480;
       cfg.bus_shared = false;
       cfg.offset_rotation = 0;
-      cfg.i2c_port = I2C_NUM_0;
+      cfg.i2c_port = I2C_NUM_1;
       cfg.pin_sda = GPIO_NUM_19;
       cfg.pin_scl = GPIO_NUM_20;
       cfg.pin_int = GPIO_NUM_NC;
       cfg.pin_rst = GPIO_NUM_38;
-      cfg.x_max = 800;
-      cfg.y_max = 480;
-      cfg.freq = 100000;
+      cfg.freq = 400000;
+      cfg.i2c_addr = 0x14; // Default GT911 address (0x14 / 0x5D)
       _touch_instance.config(cfg);
       _panel_instance.setTouch(&_touch_instance);
     }

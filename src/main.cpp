@@ -1,4 +1,4 @@
-#include <Arduino.h>
+﻿#include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <time.h>
@@ -11,8 +11,9 @@
 
 static LGFX tft;
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t buf1[240 * 40];
-static lv_color_t buf2[240 * 40];
+static lv_color_t *buf1 = nullptr;
+static lv_color_t *buf2 = nullptr;
+#define BUF_LINES 32 // 800*32 = 25600 px ~50KB - single buffer p/ evitar piscada
 
 static lv_obj_t *time_label;
 static lv_obj_t *date_label;
@@ -31,10 +32,8 @@ static String weatherCity = "Sao Paulo";
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
   uint32_t w = (area->x2 - area->x1 + 1);
   uint32_t h = (area->y2 - area->y1 + 1);
-  tft.startWrite();
-  tft.setAddrWindow(area->x1, area->y1, w, h);
-  tft.writePixels((uint16_t *)&color_p->full, w * h);
-  tft.endWrite();
+  // Lovyan RGB - pushImage faz byteswap correto para LVGL
+  tft.pushImage(area->x1, area->y1, w, h, (lgfx::rgb565_t *)&color_p->full);
   lv_disp_flush_ready(disp);
 }
 
@@ -306,9 +305,14 @@ void setup() {
   lv_init();
   tft.init();
   tft.setRotation(0);
+  tft.setBrightness(180); // teste sem piscada: 180-200 (110 com PWM baixo causava batimento)
   tft.fillScreen(TFT_BLACK);
 
-  lv_disp_draw_buf_init(&draw_buf, buf1, buf2, 240 * 40);
+  // Single buffer no interno reduz piscada (double PSRAM causa tearing no RGB)
+  buf1 = (lv_color_t *)heap_caps_malloc(800 * BUF_LINES * sizeof(lv_color_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!buf1) buf1 = (lv_color_t *)heap_caps_malloc(800 * BUF_LINES * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  buf2 = nullptr; // single buffer = sem tearing
+  lv_disp_draw_buf_init(&draw_buf, buf1, buf2, 800 * BUF_LINES);
 
   static lv_disp_drv_t disp_drv;
   lv_disp_drv_init(&disp_drv);
@@ -365,7 +369,6 @@ if (WiFi.status() == WL_CONNECTED) {
 }
 
 void loop() {
-  lv_tick_inc(5);
   lv_timer_handler();
   delay(5);
 }
