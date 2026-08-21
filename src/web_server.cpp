@@ -253,18 +253,25 @@ async function loadConfig(){
  document.getElementById('bright').value=j.bright; document.getElementById('bv').innerText=j.bright; document.getElementById('brightBar').style.width=(j.bright/255*100)+'%';
  document.getElementById('tz').value=j.tz; document.getElementById('dint').value=j.dint; document.getElementById('wint').value=j.wint;
  document.getElementById('ssid').value=j.ssid; document.getElementById('ipBadge').textContent='IP: '+j.ip; document.getElementById('about').innerHTML=`<div class="kv"><span>IP</span><b>${j.ip}</b></div><div class="kv"><span>SSID</span><b>${j.ssid}</b></div><div class="kv"><span>Lat/Lon</span><b>${j.lat}, ${j.lon}</b></div>`;
+ // sincroniza modo claro/escuro do ESP com o site
+ if(j.dlight!==undefined){ setTheme(j.dlight? 'light':'dark', false); }
  log('Config carregado'); previewTodasMoedas(); previewClima();
 }
-function setTheme(m){
+function setTheme(m, sendToEsp=true){
  if(m==='light') document.documentElement.setAttribute('data-theme','light');
  else document.documentElement.removeAttribute('data-theme');
  localStorage.setItem('theme',m);
- document.getElementById('themeBtn').textContent= m==='light'?'☀️ Claro':'🌙 Escuro';
- toast(m==='light'?'Modo claro ativado':'Modo noturno ativado');
+ let b=document.getElementById('themeBtn'); if(b) b.textContent= m==='light'?'☀️ Claro':'🌙 Escuro';
+ if(sendToEsp){
+  // transfere para o ESP também
+  fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dlight: m==='light'?1:0})}).then(()=>{toast(m==='light'?'Modo claro no ESP e site':'Modo noturno no ESP e site'); setTimeout(()=>loadConfig(),600)});
+ } else {
+  toast(m==='light'?'Modo claro ativado':'Modo noturno ativado');
+ }
 }
 function toggleTheme(){
  let cur=document.documentElement.getAttribute('data-theme');
- setTheme(cur==='light'?'dark':'light');
+ setTheme(cur==='light'?'dark':'light', true);
 }
 (function(){let t=localStorage.getItem('theme'); if(t==='light'){document.documentElement.setAttribute('data-theme','light'); setTimeout(()=>{let b=document.getElementById('themeBtn'); if(b) b.textContent='☀️ Claro'},100)}})();
 function toggleMirror(){let w=document.getElementById('globalMirror'); let b=document.getElementById('globalMirrorBtn'); if(w.style.display==='none' || w.style.display===''){w.style.display='flex'; b.textContent='👁️ Esconder'; b.style.opacity='1'} else {w.style.display='none'; b.textContent='👁️ Tela'; b.style.opacity='0.7'} }
@@ -352,6 +359,7 @@ void handleGetConfig() {
   doc["tz"] = gConfig.tz_offset;
   doc["dint"] = gConfig.dolar_interval;
   doc["wint"] = gConfig.weather_interval;
+  doc["dlight"] = gConfig.display_light;
   doc["ssid"] = gConfig.wifi_ssid;
   doc["ip"] = WiFi.localIP().toString();
   String out;
@@ -400,6 +408,10 @@ void handlePostConfig() {
   }
   if (!doc["dint"].isNull()) gConfig.dolar_interval = doc["dint"];
   if (!doc["wint"].isNull()) gConfig.weather_interval = doc["wint"];
+  if (!doc["dlight"].isNull()) {
+    bool nl = doc["dlight"].as<bool>() || doc["dlight"].as<int>()==1;
+    if(nl != gConfig.display_light){ gConfig.display_light = nl; gNeedsRebuild = true; }
+  }
   bool wifiChanged = false;
   if (!doc["ssid"].isNull() && doc["ssid"].as<String>().length()>0) {
     String ns = doc["ssid"]; String np = doc["pass"].isNull() ? "" : doc["pass"].as<String>();

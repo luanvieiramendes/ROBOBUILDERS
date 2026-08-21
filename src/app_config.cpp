@@ -40,6 +40,7 @@ void loadConfig() {
   gConfig.tz_offset = prefs.getChar("tz", gConfig.tz_offset);
   gConfig.dolar_interval = prefs.getUShort("dint", gConfig.dolar_interval);
   gConfig.weather_interval = prefs.getUShort("wint", gConfig.weather_interval);
+  gConfig.display_light = prefs.getBool("dlight", gConfig.display_light);
   prefs.end();
   Serial.println("[Config] carregado");
 }
@@ -67,6 +68,7 @@ void saveConfig() {
   prefs.putChar("tz", gConfig.tz_offset);
   prefs.putUShort("dint", gConfig.dolar_interval);
   prefs.putUShort("wint", gConfig.weather_interval);
+  prefs.putBool("dlight", gConfig.display_light);
   prefs.end();
   Serial.println("[Config] salvo");
 }

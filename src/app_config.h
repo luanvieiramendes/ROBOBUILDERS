@@ -25,6 +25,7 @@ struct AppConfig {
   int8_t tz_offset = -3; // -3 Brasil
   uint16_t dolar_interval = 60;   // segundos
   uint16_t weather_interval = 600; // segundos
+  bool display_light = false; // false=noturno escuro, true=claro transfere p/ ESP
 };
 
 extern AppConfig gConfig;
