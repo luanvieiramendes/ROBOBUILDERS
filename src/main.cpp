@@ -5,11 +5,10 @@
 #include <ArduinoJson.h>
 #include <lvgl.h>
 #include "LGFX_ESP32_8048S070.h"
+#include "app_config.h"
+#include "web_server.h"
 
-#define WIFI_SSID "ROBOBUILDERS"
-#define WIFI_PASS "luan123*"
-
-static LGFX tft;
+LGFX tft;
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t *buf1 = nullptr;
 static lv_color_t *buf2 = nullptr;
@@ -24,10 +23,10 @@ static lv_obj_t *weather_temp_label;
 static lv_obj_t *weather_desc_label;
 static lv_obj_t *weather_city_label;
 
-static String dolarValue = "R$ --,--";
-static String weatherTemp = "--";
-static String weatherDesc = "----";
-static String weatherCity = "Sao Paulo";
+String dolarValue = "R$ --,--";
+String weatherTemp = "--";
+String weatherDesc = "----";
+String weatherCity = "Sao Paulo";
 
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
   uint32_t w = (area->x2 - area->x1 + 1);
@@ -231,26 +230,35 @@ void update_clock(lv_timer_t *timer) {
 
 void update_dolar(lv_timer_t *timer) {
   if (WiFi.status() != WL_CONNECTED) return;
-
+  // Usa moeda 1 configurada (ex: USD-BRL). Se desativada, pula
+  if (!gConfig.curr1_enabled) return;
+  String pair = String(gConfig.currency_1); // ex "USD-BRL"
+  String key = pair; key.replace("-", ""); // USDBRL para parse
+  String url = "https://economia.awesomeapi.com.br/json/last/" + pair;
   HTTPClient http;
   http.setTimeout(10000);
-  http.begin("https://economia.awesomeapi.com.br/json/last/USD-BRL");
+  http.begin(url);
   int httpCode = http.GET();
 
   if (httpCode == HTTP_CODE_OK) {
     String payload = http.getString();
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, payload);
-    if (!err) {
-      const char *bid = doc["USDBRL"]["bid"];
-      dolarValue = String("R$ ") + bid;
-      lv_label_set_text(dolar_label, dolarValue.c_str());
-      Serial.println("Dolar: " + dolarValue);
+    if (!err && doc[key].is<JsonObject>()) {
+      const char *bid = doc[key]["bid"];
+      if (bid) {
+        dolarValue = String("R$ ") + bid;
+        // atualiza label par (ex USD / BRL)
+        lv_label_set_text(dolar_label, dolarValue.c_str());
+        Serial.println(String(pair) + ": " + dolarValue);
+        // atualiza par exibido no card se existir
+        // (busca label filho do card - simplificado: atualiza via status)
+      }
     } else {
-      Serial.println("Erro ao parsear JSON");
+      Serial.println("Erro ao parsear JSON dolar");
     }
   } else {
-    Serial.printf("Erro HTTP: %d\n", httpCode);
+    Serial.printf("Erro HTTP dolar %d pair %s\n", httpCode, pair.c_str());
   }
   http.end();
 }
@@ -258,9 +266,11 @@ void update_dolar(lv_timer_t *timer) {
 void update_weather(lv_timer_t *timer) {
   if (WiFi.status() != WL_CONNECTED) return;
 
+  char url[160];
+  snprintf(url, sizeof(url), "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f&current_weather=true", gConfig.lat, gConfig.lon);
   HTTPClient http;
   http.setTimeout(10000);
-  http.begin("https://api.open-meteo.com/v1/forecast?latitude=-23.5505&longitude=-46.6333&current_weather=true");
+  http.begin(url);
   int httpCode = http.GET();
 
   if (httpCode == HTTP_CODE_OK) {
@@ -286,10 +296,12 @@ void update_weather(lv_timer_t *timer) {
       snprintf(buf, sizeof(buf), "%.0f\xC2\xB0", temp);
       weatherTemp = buf;
       weatherDesc = desc;
+      weatherCity = String(gConfig.city);
 
       lv_label_set_text(weather_temp_label, weatherTemp.c_str());
       lv_label_set_text(weather_desc_label, weatherDesc.c_str());
-      Serial.println("Clima: " + weatherTemp + " " + weatherDesc);
+      lv_label_set_text(weather_city_label, weatherCity.c_str());
+      Serial.println("Clima: " + weatherTemp + " " + weatherDesc + " @" + weatherCity);
     } else {
       Serial.println("Erro ao parsear clima JSON");
     }
@@ -301,11 +313,12 @@ void update_weather(lv_timer_t *timer) {
 
 void setup() {
   Serial.begin(115200);
+  loadConfig();
 
   lv_init();
   tft.init();
   tft.setRotation(0);
-  tft.setBrightness(180); // teste sem piscada: 180-200 (110 com PWM baixo causava batimento)
+  tft.setBrightness(gConfig.brightness);
   tft.fillScreen(TFT_BLACK);
 
   // Single buffer no interno reduz piscada (double PSRAM causa tearing no RGB)
@@ -331,7 +344,7 @@ void setup() {
   create_ui();
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  WiFi.begin(gConfig.wifi_ssid, gConfig.wifi_pass);
 
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
@@ -339,21 +352,28 @@ void setup() {
     delay(10);
   }
 
-if (WiFi.status() == WL_CONNECTED) {
+ if (WiFi.status() == WL_CONNECTED) {
     lv_obj_set_style_bg_color(wifi_dot, lv_color_hex(0x00E676), 0);
     lv_obj_set_style_shadow_color(wifi_dot, lv_color_hex(0x00E676), 0);
     char buf[64];
     snprintf(buf, sizeof(buf), "IP: %s", WiFi.localIP().toString().c_str());
     lv_label_set_text(status_label, buf);
-    Serial.println("WiFi conectado!");
+    Serial.println(String("WiFi conectado! IP: ") + WiFi.localIP().toString());
+    webServerInit();
   } else {
     lv_obj_set_style_bg_color(wifi_dot, lv_color_hex(0xFF5252), 0);
     lv_obj_set_style_shadow_color(wifi_dot, lv_color_hex(0xFF5252), 0);
-    lv_label_set_text(status_label, "Falha no WiFi");
-    Serial.println("Falha no WiFi");
+    lv_label_set_text(status_label, "Falha WiFi - AP 192.168.4.1");
+    Serial.println("Falha WiFi - iniciando AP para config");
+    WiFi.softAP("Painel-Config", "12345678");
+    Serial.println(String("AP IP: ") + WiFi.softAPIP().toString());
+    webServerInit();
   }
 
-  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  configTime(gConfig.tz_offset * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  // inicializa labels clima/cidade com config salva
+  weatherCity = String(gConfig.city);
+  lv_label_set_text(weather_city_label, weatherCity.c_str());
   struct tm timeinfo;
   while (!getLocalTime(&timeinfo)) {
     lv_timer_handler();
@@ -362,13 +382,14 @@ if (WiFi.status() == WL_CONNECTED) {
   Serial.println("Tempo sincronizado!");
 
   lv_timer_create(update_clock, 1000, NULL);
-  lv_timer_create(update_dolar, 60000, NULL);
-  lv_timer_create(update_weather, 600000, NULL);
+  lv_timer_create(update_dolar, gConfig.dolar_interval * 1000, NULL);
+  lv_timer_create(update_weather, gConfig.weather_interval * 1000, NULL);
   update_dolar(NULL);
   update_weather(NULL);
 }
 
 void loop() {
   lv_timer_handler();
+  webServerLoop();
   delay(5);
 }
