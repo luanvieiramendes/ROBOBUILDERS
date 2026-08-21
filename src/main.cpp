@@ -17,16 +17,23 @@ static lv_color_t *buf2 = nullptr;
 static lv_obj_t *time_label;
 static lv_obj_t *date_label;
 static lv_obj_t *status_label;
-static lv_obj_t *dolar_label;
 static lv_obj_t *wifi_dot;
 static lv_obj_t *weather_temp_label;
 static lv_obj_t *weather_desc_label;
 static lv_obj_t *weather_city_label;
 
-String dolarValue = "R$ --,--";
+// Suporte a até 3 moedas dinâmicas
+static lv_obj_t *moeda_cards[3] = {nullptr,nullptr,nullptr};
+static lv_obj_t *moeda_pair_labels[3] = {nullptr,nullptr,nullptr};
+static lv_obj_t *moeda_value_labels[3] = {nullptr,nullptr,nullptr};
+// compatibilidade: dolar_label aponta para moeda 0
+static lv_obj_t *dolar_label = nullptr;
+static String moedaValues[3] = {"R$ --,--","R$ --,--","R$ --,--"};
+String dolarValue = "R$ --,--"; // alias para moedaValues[0] e /api/data
 String weatherTemp = "--";
 String weatherDesc = "----";
 String weatherCity = "Sao Paulo";
+volatile bool gNeedsRebuild = false;
 
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
   uint32_t w = (area->x2 - area->x1 + 1);
@@ -72,7 +79,25 @@ void make_accent_strip(lv_obj_t *parent, lv_coord_t h, lv_color_t color) {
 }
 
 void create_ui() {
+  // Calcula quantas moedas ativas
+  int cnt = (gConfig.curr1_enabled?1:0) + (gConfig.curr2_enabled?1:0) + (gConfig.curr3_enabled?1:0);
+  if(cnt==0) cnt=1; // mostra pelo menos 1
+
+  // Proporção: time peso 3, clima peso 2, cada moeda peso 2
+  const int totalCards = 2 + cnt; // time + clima + N moedas
+  const int gap = 12;
+  const int avail = 800 - 56 - (totalCards-1)*gap;
+  const int totalWeight = 5 + cnt*2;
+  const int unit = avail / totalWeight;
+  int timeW = unit*3;
+  int climaW = unit*2;
+  int moedaW = unit*2;
+  // corrige resto
+  int used = timeW + climaW + moedaW*cnt + (totalCards-1)*gap + 56;
+  timeW += (800 - used);
+
   lv_obj_t *scr = lv_scr_act();
+  lv_obj_clean(scr);
   lv_obj_set_style_bg_color(scr, lv_color_hex(0x070A12), 0);
   lv_obj_set_style_bg_grad_color(scr, lv_color_hex(0x0E1420), 0);
   lv_obj_set_style_bg_grad_dir(scr, LV_GRAD_DIR_VER, 0);
@@ -126,86 +151,105 @@ void create_ui() {
   lv_obj_set_style_text_color(status_label, lv_color_hex(0x7A8699), 0);
   lv_obj_align(status_label, LV_ALIGN_RIGHT_MID, -32, 0);
 
-  lv_obj_t *time_card = make_card(scr, 28, 108, 360, 300, lv_color_hex(0x0F1622));
+  int x = 28;
+  // TIME
+  lv_obj_t *time_card = make_card(scr, x, 108, timeW, 300, lv_color_hex(0x0F1622));
   lv_obj_set_style_border_color(time_card, lv_color_hex(0x1E2A3A), 0);
   lv_obj_set_style_border_width(time_card, 1, 0);
   make_accent_strip(time_card, 4, lv_color_hex(0x22D3EE));
-
   lv_obj_t *time_caption = lv_label_create(time_card);
   lv_label_set_text(time_caption, "HORARIO LOCAL");
   lv_obj_set_style_text_font(time_caption, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(time_caption, lv_color_hex(0x22D3EE), 0);
   lv_obj_set_style_text_letter_space(time_caption, 3, 0);
   lv_obj_align(time_caption, LV_ALIGN_TOP_MID, 0, 18);
-
   time_label = lv_label_create(time_card);
   lv_label_set_text(time_label, "--:--:--");
-  lv_obj_set_style_text_font(time_label, &lv_font_montserrat_48, 0);
+  // fonte adapta ao tamanho
+  lv_obj_set_style_text_font(time_label, timeW>300? &lv_font_montserrat_48 : timeW>220? &lv_font_montserrat_32 : &lv_font_montserrat_24, 0);
   lv_obj_set_style_text_color(time_label, lv_color_hex(0xF8FAFC), 0);
   lv_obj_align(time_label, LV_ALIGN_CENTER, 0, 10);
-
   date_label = lv_label_create(time_card);
   lv_label_set_text(date_label, "");
-  lv_obj_set_style_text_font(date_label, &lv_font_montserrat_20, 0);
+  lv_obj_set_style_text_font(date_label, &lv_font_montserrat_16, 0);
   lv_obj_set_style_text_color(date_label, lv_color_hex(0x7A8699), 0);
   lv_obj_align(date_label, LV_ALIGN_BOTTOM_MID, 0, -20);
+  x += timeW + gap;
 
-  lv_obj_t *weather_card = make_card(scr, 410, 108, 170, 300, lv_color_hex(0x0F1622));
+  // CLIMA
+  lv_obj_t *weather_card = make_card(scr, x, 108, climaW, 300, lv_color_hex(0x0F1622));
   lv_obj_set_style_border_color(weather_card, lv_color_hex(0x1E2A3A), 0);
   lv_obj_set_style_border_width(weather_card, 1, 0);
   make_accent_strip(weather_card, 4, lv_color_hex(0xFFB300));
-
   lv_obj_t *weather_caption = lv_label_create(weather_card);
   lv_label_set_text(weather_caption, "CLIMA");
   lv_obj_set_style_text_font(weather_caption, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(weather_caption, lv_color_hex(0xFFB300), 0);
   lv_obj_set_style_text_letter_space(weather_caption, 3, 0);
   lv_obj_align(weather_caption, LV_ALIGN_TOP_MID, 0, 18);
-
   weather_city_label = lv_label_create(weather_card);
   lv_label_set_text(weather_city_label, weatherCity.c_str());
-  lv_obj_set_style_text_font(weather_city_label, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_font(weather_city_label, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(weather_city_label, lv_color_hex(0x7A8699), 0);
   lv_obj_align(weather_city_label, LV_ALIGN_TOP_MID, 0, 52);
-
   weather_temp_label = lv_label_create(weather_card);
   lv_label_set_text(weather_temp_label, "--\xC2\xB0");
-  lv_obj_set_style_text_font(weather_temp_label, &lv_font_montserrat_48, 0);
+  lv_obj_set_style_text_font(weather_temp_label, climaW>150? &lv_font_montserrat_48 : &lv_font_montserrat_32, 0);
   lv_obj_set_style_text_color(weather_temp_label, lv_color_hex(0xFFB300), 0);
   lv_obj_align(weather_temp_label, LV_ALIGN_CENTER, 0, 10);
-
   weather_desc_label = lv_label_create(weather_card);
   lv_label_set_text(weather_desc_label, "----");
-  lv_obj_set_style_text_font(weather_desc_label, &lv_font_montserrat_16, 0);
+  lv_obj_set_style_text_font(weather_desc_label, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(weather_desc_label, lv_color_hex(0x7A8699), 0);
   lv_obj_align(weather_desc_label, LV_ALIGN_BOTTOM_MID, 0, -20);
+  x += climaW + gap;
 
-  lv_obj_t *dolar_card = make_card(scr, 602, 108, 170, 300, lv_color_hex(0x0F1622));
-  lv_obj_set_style_border_color(dolar_card, lv_color_hex(0x1E2A3A), 0);
-  lv_obj_set_style_border_width(dolar_card, 1, 0);
-  make_accent_strip(dolar_card, 4, lv_color_hex(0x00E676));
-
-  lv_obj_t *dolar_caption = lv_label_create(dolar_card);
-  lv_label_set_text(dolar_caption, "CAMBIO");
-  lv_obj_set_style_text_font(dolar_caption, &lv_font_montserrat_14, 0);
-  lv_obj_set_style_text_color(dolar_caption, lv_color_hex(0x00E676), 0);
-  lv_obj_set_style_text_letter_space(dolar_caption, 3, 0);
-  lv_obj_align(dolar_caption, LV_ALIGN_TOP_MID, 0, 18);
-
-  lv_obj_t *dolar_pair = lv_label_create(dolar_card);
-  lv_label_set_text(dolar_pair, "USD / BRL");
-  lv_obj_set_style_text_font(dolar_pair, &lv_font_montserrat_16, 0);
-  lv_obj_set_style_text_color(dolar_pair, lv_color_hex(0x5A6A80), 0);
-  lv_obj_align(dolar_pair, LV_ALIGN_TOP_MID, 0, 52);
-
-  dolar_label = lv_label_create(dolar_card);
-  lv_label_set_text(dolar_label, dolarValue.c_str());
-  lv_obj_set_style_text_font(dolar_label, &lv_font_montserrat_32, 0);
-  lv_obj_set_style_text_color(dolar_label, lv_color_hex(0x00E676), 0);
-  lv_obj_align(dolar_label, LV_ALIGN_CENTER, 0, 30);
+  // MOEDAS - cria até 3 cards proporcionais
+  const char* pairs[3] = {gConfig.currency_1, gConfig.currency_2, gConfig.currency_3};
+  bool enabled[3] = {gConfig.curr1_enabled, gConfig.curr2_enabled, gConfig.curr3_enabled};
+  lv_color_t accents[3] = {lv_color_hex(0x00E676), lv_color_hex(0x2979FF), lv_color_hex(0xFFAB00)};
+  int idx=0;
+  for(int i=0;i<3;i++){
+    if(!enabled[i] && cnt>1) continue; // pula desativadas se há mais de 1
+    if(cnt==1 && i!=0 && !enabled[i]) continue; // se cnt==1 mostra só primeira ativa
+    // se cnt foi calculado com desativadas, mas queremos mostrar só ativas, já ajustado
+    bool isSingle = (cnt==1);
+    lv_obj_t *card = make_card(scr, x, 108, moedaW, 300, lv_color_hex(0x0F1622));
+    lv_obj_set_style_border_color(card, lv_color_hex(0x1E2A3A), 0);
+    lv_obj_set_style_border_width(card, 1, 0);
+    make_accent_strip(card, 4, accents[i]);
+    moeda_cards[idx]=card;
+    lv_obj_t *cap = lv_label_create(card);
+    lv_label_set_text(cap, cnt==1? "CAMBIO" : pairs[i]);
+    lv_obj_set_style_text_font(cap, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(cap, accents[i], 0);
+    lv_obj_set_style_text_letter_space(cap, 2, 0);
+    lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 18);
+    String p = String(pairs[i]); p.replace("-"," / ");
+    lv_obj_t *pairLbl = lv_label_create(card);
+    lv_label_set_text(pairLbl, p.c_str());
+    lv_obj_set_style_text_font(pairLbl, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(pairLbl, lv_color_hex(0x5A6A80), 0);
+    lv_obj_align(pairLbl, LV_ALIGN_TOP_MID, 0, 48);
+    moeda_pair_labels[idx]=pairLbl;
+    lv_obj_t *val = lv_label_create(card);
+    lv_label_set_text(val, moedaValues[i].c_str());
+    lv_obj_set_style_text_font(val, moedaW>150? &lv_font_montserrat_32 : moedaW>110? &lv_font_montserrat_24 : &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(val, accents[i], 0);
+    lv_obj_align(val, LV_ALIGN_CENTER, 0, 20);
+    moeda_value_labels[idx]=val;
+    if(idx==0) dolar_label = val; // compat
+    x += moedaW + gap;
+    idx++;
+    if(idx>=cnt) break;
+  }
+  // limpa slots não usados
+  for(int i=idx;i<3;i++){ moeda_cards[i]=nullptr; moeda_pair_labels[i]=nullptr; moeda_value_labels[i]=nullptr; }
 
   lv_obj_t *footer = lv_label_create(scr);
-  lv_label_set_text(footer, "Atualizado a cada 60s  |  Hora sincronizada via NTP");
+  char fbuf[64];
+  snprintf(fbuf,sizeof(fbuf),"Atualizado a cada %ds | %d moeda(s) | %s", gConfig.dolar_interval, cnt, gConfig.city);
+  lv_label_set_text(footer, fbuf);
   lv_obj_set_style_text_font(footer, &lv_font_montserrat_14, 0);
   lv_obj_set_style_text_color(footer, lv_color_hex(0x5A6A80), 0);
   lv_obj_align(footer, LV_ALIGN_BOTTOM_MID, 0, -20);
@@ -230,35 +274,49 @@ void update_clock(lv_timer_t *timer) {
 
 void update_dolar(lv_timer_t *timer) {
   if (WiFi.status() != WL_CONNECTED) return;
-  // Usa moeda 1 configurada (ex: USD-BRL). Se desativada, pula
-  if (!gConfig.curr1_enabled) return;
-  String pair = String(gConfig.currency_1); // ex "USD-BRL"
-  String key = pair; key.replace("-", ""); // USDBRL para parse
-  String url = "https://economia.awesomeapi.com.br/json/last/" + pair;
+  // Monta lista de moedas ativas
+  String pairs[3] = {String(gConfig.currency_1), String(gConfig.currency_2), String(gConfig.currency_3)};
+  bool enabled[3] = {gConfig.curr1_enabled, gConfig.curr2_enabled, gConfig.curr3_enabled};
+  String list = "";
+  for(int i=0;i<3;i++) if(enabled[i]) { if(list.length()) list+=",";
+    list += pairs[i];
+  }
+  if(list.length()==0) return;
+  String url = "https://economia.awesomeapi.com.br/json/last/" + list;
   HTTPClient http;
   http.setTimeout(10000);
   http.begin(url);
   int httpCode = http.GET();
-
   if (httpCode == HTTP_CODE_OK) {
     String payload = http.getString();
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, payload);
-    if (!err && doc[key].is<JsonObject>()) {
-      const char *bid = doc[key]["bid"];
-      if (bid) {
-        dolarValue = String("R$ ") + bid;
-        // atualiza label par (ex USD / BRL)
-        lv_label_set_text(dolar_label, dolarValue.c_str());
-        Serial.println(String(pair) + ": " + dolarValue);
-        // atualiza par exibido no card se existir
-        // (busca label filho do card - simplificado: atualiza via status)
+    if (!err) {
+      int idx=0;
+      for(int i=0;i<3;i++) if(enabled[i]){
+        String key = pairs[i]; key.replace("-","");
+        if(doc[key].is<JsonObject>()){
+          const char *bid = doc[key]["bid"];
+          if(bid){
+            String val = String("R$ ") + bid;
+            moedaValues[i] = val;
+            if(i==0) dolarValue = val;
+            if(moeda_value_labels[idx]) lv_label_set_text(moeda_value_labels[idx], val.c_str());
+            // atualiza par label caso mudou config sem reboot
+            if(moeda_pair_labels[idx]){
+              String p = pairs[i]; p.replace("-"," / ");
+              lv_label_set_text(moeda_pair_labels[idx], p.c_str());
+            }
+            Serial.println(pairs[i] + ": " + val);
+          }
+          idx++;
+        }
       }
     } else {
       Serial.println("Erro ao parsear JSON dolar");
     }
   } else {
-    Serial.printf("Erro HTTP dolar %d pair %s\n", httpCode, pair.c_str());
+    Serial.printf("Erro HTTP dolar %d list %s\n", httpCode, list.c_str());
   }
   http.end();
 }
@@ -389,6 +447,18 @@ void setup() {
 }
 
 void loop() {
+  if(gNeedsRebuild){
+    gNeedsRebuild = false;
+    create_ui();
+    // atualiza dados nos novos labels
+    update_dolar(NULL);
+    update_weather(NULL);
+    // força status wifi
+    if(WiFi.status()==WL_CONNECTED){
+      char buf[64]; snprintf(buf,sizeof(buf),"IP: %s",WiFi.localIP().toString().c_str());
+      lv_label_set_text(status_label, buf);
+    }
+  }
   lv_timer_handler();
   webServerLoop();
   delay(5);

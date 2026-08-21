@@ -9,6 +9,7 @@ extern String dolarValue;
 extern String weatherTemp;
 extern String weatherDesc;
 extern String weatherCity;
+extern volatile bool gNeedsRebuild;
 
 WebServer webServer(80);
 
@@ -392,12 +393,15 @@ void handlePostConfig() {
     webServer.send(400, "application/json", "{\"msg\":\"json invalido\"}");
     return;
   }
+  int oldCnt = (gConfig.curr1_enabled?1:0)+(gConfig.curr2_enabled?1:0)+(gConfig.curr3_enabled?1:0);
   if (!doc["c1"].isNull()) strlcpy(gConfig.currency_1, doc["c1"], sizeof(gConfig.currency_1));
   if (!doc["c2"].isNull()) strlcpy(gConfig.currency_2, doc["c2"], sizeof(gConfig.currency_2));
   if (!doc["c3"].isNull()) strlcpy(gConfig.currency_3, doc["c3"], sizeof(gConfig.currency_3));
   if (!doc["c1en"].isNull()) gConfig.curr1_enabled = doc["c1en"];
   if (!doc["c2en"].isNull()) gConfig.curr2_enabled = doc["c2en"];
   if (!doc["c3en"].isNull()) gConfig.curr3_enabled = doc["c3en"];
+  int newCnt = (gConfig.curr1_enabled?1:0)+(gConfig.curr2_enabled?1:0)+(gConfig.curr3_enabled?1:0);
+  if(oldCnt != newCnt) gNeedsRebuild = true;
   if (!doc["city"].isNull()) strlcpy(gConfig.city, doc["city"], sizeof(gConfig.city));
   if (!doc["lat"].isNull()) gConfig.lat = doc["lat"];
   if (!doc["lon"].isNull()) gConfig.lon = doc["lon"];
