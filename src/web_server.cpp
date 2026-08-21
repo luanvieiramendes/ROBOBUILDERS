@@ -67,11 +67,11 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 .wifi-item:hover{border-color:var(--accent)}
 .wifi-item b{flex:1}
 .rssi{font-size:11px;color:var(--muted)}
-#globalMirror{transition:.3s;overflow:hidden}
+#globalMirror{transition:.3s;overflow:hidden;height:280px}
 #mirrorScreen{transform:scale(0.55);margin:0}
-@media(max-width:900px){#mirrorScreen{transform:scale(0.40)} #globalMirror{height:240px}}
-@media(max-width:600px){#mirrorScreen{transform:scale(0.28)} #globalMirror{height:170px}}
-@media(max-width:400px){#mirrorScreen{transform:scale(0.22)} #globalMirror{height:140px}}
+@media(max-width:900px){#mirrorScreen{transform:scale(0.40)} #globalMirror{height:200px}}
+@media(max-width:600px){#mirrorScreen{transform:scale(0.28)} #globalMirror{height:145px}}
+@media(max-width:400px){#mirrorScreen{transform:scale(0.22)} #globalMirror{height:115px}}
 </style>
 </head>
 <body>
@@ -84,9 +84,9 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
  <span id="wifiBadge" class="badge ok">WiFi</span>
 </div>
 
-<!-- ESPELHAMENTO GLOBAL - recolhido por padrão para não ocupar espaço -->
-<div id="globalMirror" style="max-width:1200px;margin:14px auto;background:#000;padding:10px;border-radius:16px;border:2px solid #d4a017;box-shadow:0 0 0 4px #8c6b00 inset;display:none;justify-content:center;overflow:hidden">
- <div id="mirrorScreen" style="width:800px;min-width:800px;height:480px;background:linear-gradient(180deg,#070A12,#0E1420);border:4px solid #333;border-radius:8px;overflow:hidden;transform-origin:top left;position:relative;transform:scale(0.55)">
+<!-- ESPELHAMENTO GLOBAL - sem fundo preto, só a tela proporcional -->
+<div id="globalMirror" style="max-width:1200px;margin:14px auto;background:transparent;padding:0;display:none;justify-content:center;overflow:visible">
+ <div id="mirrorScreen" style="width:800px;min-width:800px;height:480px;background:linear-gradient(180deg,#070A12,#0E1420);border:2px solid #d4a017;border-radius:12px;overflow:hidden;transform-origin:top center;position:relative;transform:scale(0.55);box-shadow:0 0 0 4px #8c6b00, 0 8px 30px rgba(0,0,0,.4)">
   <div style="height:28px;background:#06080D;border-bottom:1px solid #1E2A3A;display:flex;align-items:center;padding:0 10px;gap:8px">
    <div style="width:4px;height:18px;background:#22D3EE;border-radius:2px"></div>
    <span style="font-size:10px;font-weight:800;letter-spacing:1px">PAINEL FINANCEIRO</span>
