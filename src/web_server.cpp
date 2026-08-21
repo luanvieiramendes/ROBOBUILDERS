@@ -22,8 +22,12 @@ static const char HTML_PAGE[] PROGMEM = R"rawliteral(
 <title>Painel Financeiro</title>
 <style>
 :root{--bg:#070A12;--card:#12121A;--card2:#0F1622;--accent:#22D3EE;--yellow:#FFB300;--green:#00E676;--red:#FF5252;--text:#F8FAFC;--muted:#7A8699;--border:#1E2A3A}
+[data-theme="light"]{--bg:#EEF2F7;--card:#FFFFFF;--card2:#F1F5F9;--text:#0F172A;--muted:#64748B;--border:#E2E8F0}
+[data-theme="light"] body{background:radial-gradient(1200px 600px at 20% -10%, #dbeafe 0%, transparent 50%), linear-gradient(180deg,#F8FAFC,#EEF2F7)}
 *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,sans-serif}
 body{margin:0;background:radial-gradient(1200px 600px at 20% -10%, #1a2a44 0%, transparent 50%), linear-gradient(180deg,#070A12,#0E1420);color:var(--text);padding:16px;min-height:100vh}
+[data-theme="light"] .card{box-shadow:0 8px 20px rgba(0,0,0,.08)}
+[data-theme="light"] .top h1{color:#0F172A}
 .top{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .top h1{font-size:22px;margin:0;letter-spacing:1px}
 .top small{color:var(--muted);font-size:12px}
@@ -64,24 +68,25 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 .wifi-item b{flex:1}
 .rssi{font-size:11px;color:var(--muted)}
 #globalMirror{transition:.3s;overflow:hidden}
-#mirrorScreen{transform:scale(0.72);margin:0}
-@media(max-width:900px){#mirrorScreen{transform:scale(0.5)} #globalMirror{height:280px}}
-@media(max-width:600px){#mirrorScreen{transform:scale(0.33)} #globalMirror{height:200px}}
-@media(max-width:400px){#mirrorScreen{transform:scale(0.28)} #globalMirror{height:170px}}
+#mirrorScreen{transform:scale(0.55);margin:0}
+@media(max-width:900px){#mirrorScreen{transform:scale(0.40)} #globalMirror{height:240px}}
+@media(max-width:600px){#mirrorScreen{transform:scale(0.28)} #globalMirror{height:170px}}
+@media(max-width:400px){#mirrorScreen{transform:scale(0.22)} #globalMirror{height:140px}}
 </style>
 </head>
 <body>
 <div class="top">
  <h1>PAINEL FINANCEIRO</h1>
  <small id="sub">Horário e câmbio em tempo real</small>
- <button id="globalMirrorBtn" onclick="toggleMirror()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:700">👁️ Tela</button>
+ <button onclick="toggleTheme()" id="themeBtn" title="Alternar claro/escuro" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:999px;cursor:pointer;font-size:12px">🌙 Escuro</button>
+ <button id="globalMirrorBtn" onclick="toggleMirror()" style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:700">👁️ Tela</button>
  <span id="ipBadge" class="badge ok">IP: --</span>
  <span id="wifiBadge" class="badge ok">WiFi</span>
 </div>
 
-<!-- ESPELHAMENTO GLOBAL - idêntico em proporção menor, visível em todas as abas -->
-<div id="globalMirror" style="max-width:1200px;margin:14px auto;background:#000;padding:12px;border-radius:16px;border:2px solid #d4a017;box-shadow:0 0 0 4px #8c6b00 inset;display:flex;justify-content:center;overflow:hidden">
- <div id="mirrorScreen" style="width:800px;min-width:800px;height:480px;background:linear-gradient(180deg,#070A12,#0E1420);border:4px solid #333;border-radius:8px;overflow:hidden;transform-origin:top left;position:relative;transform:scale(0.72)">
+<!-- ESPELHAMENTO GLOBAL - recolhido por padrão para não ocupar espaço -->
+<div id="globalMirror" style="max-width:1200px;margin:14px auto;background:#000;padding:10px;border-radius:16px;border:2px solid #d4a017;box-shadow:0 0 0 4px #8c6b00 inset;display:none;justify-content:center;overflow:hidden">
+ <div id="mirrorScreen" style="width:800px;min-width:800px;height:480px;background:linear-gradient(180deg,#070A12,#0E1420);border:4px solid #333;border-radius:8px;overflow:hidden;transform-origin:top left;position:relative;transform:scale(0.55)">
   <div style="height:28px;background:#06080D;border-bottom:1px solid #1E2A3A;display:flex;align-items:center;padding:0 10px;gap:8px">
    <div style="width:4px;height:18px;background:#22D3EE;border-radius:2px"></div>
    <span style="font-size:10px;font-weight:800;letter-spacing:1px">PAINEL FINANCEIRO</span>
@@ -141,6 +146,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 
 <div id="tab-sistema" class="grid hidden">
  <div class="card accent"><h2>TELA</h2><label>Brilho <span id="bv" style="float:right;color:var(--accent)"></span><input id="bright" type="range" min="10" max="255"></label><div style="height:10px;background:#0F1622;border-radius:999px;overflow:hidden;margin-top:6px"><div id="brightBar" style="height:100%;background:var(--accent);width:50%"></div></div><label>Fuso</label><select id="tz"><option value="-5">-5 Acre</option><option value="-4">-4 Manaus</option><option value="-3" selected>-3 Brasília</option><option value="-2">-2 Fernando</option></select></div>
+ <div class="card"><h2>APARÊNCIA</h2><div class="row"><button class="btn-dark" onclick="setTheme('dark')">🌙 Noturno</button><button class="btn-dark" onclick="setTheme('light')">☀️ Claro</button></div><small style="color:var(--muted)">Alterna site e espelhamento. Salvo no navegador.</small></div>
  <div class="card">
   <h2>WIFI - REDES PRÓXIMAS (sem digitar SSID)</h2>
   <button class="btn-dark" onclick="scanWifi()">🔍 Buscar redes próximas</button>
@@ -249,7 +255,19 @@ async function loadConfig(){
  document.getElementById('ssid').value=j.ssid; document.getElementById('ipBadge').textContent='IP: '+j.ip; document.getElementById('about').innerHTML=`<div class="kv"><span>IP</span><b>${j.ip}</b></div><div class="kv"><span>SSID</span><b>${j.ssid}</b></div><div class="kv"><span>Lat/Lon</span><b>${j.lat}, ${j.lon}</b></div>`;
  log('Config carregado'); previewTodasMoedas(); previewClima();
 }
-function toggleMirror(){let w=document.getElementById('globalMirror'); let b=document.getElementById('globalMirrorBtn'); if(w.style.display==='none'){w.style.display='flex'; b.textContent='👁️ Tela'; b.style.opacity='1'} else {w.style.display='none'; b.textContent='👁️ Tela'; b.style.opacity='0.5'} }
+function setTheme(m){
+ if(m==='light') document.documentElement.setAttribute('data-theme','light');
+ else document.documentElement.removeAttribute('data-theme');
+ localStorage.setItem('theme',m);
+ document.getElementById('themeBtn').textContent= m==='light'?'☀️ Claro':'🌙 Escuro';
+ toast(m==='light'?'Modo claro ativado':'Modo noturno ativado');
+}
+function toggleTheme(){
+ let cur=document.documentElement.getAttribute('data-theme');
+ setTheme(cur==='light'?'dark':'light');
+}
+(function(){let t=localStorage.getItem('theme'); if(t==='light'){document.documentElement.setAttribute('data-theme','light'); setTimeout(()=>{let b=document.getElementById('themeBtn'); if(b) b.textContent='☀️ Claro'},100)}})();
+function toggleMirror(){let w=document.getElementById('globalMirror'); let b=document.getElementById('globalMirrorBtn'); if(w.style.display==='none' || w.style.display===''){w.style.display='flex'; b.textContent='👁️ Esconder'; b.style.opacity='1'} else {w.style.display='none'; b.textContent='👁️ Tela'; b.style.opacity='0.7'} }
 function updateMirror(j){
  let m=document.getElementById('mBody'); if(!m) return;
  document.getElementById('mTime').textContent=j.time; document.getElementById('mIp').textContent='IP: '+j.ip;
