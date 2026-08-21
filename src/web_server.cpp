@@ -63,17 +63,34 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
 .wifi-item:hover{border-color:var(--accent)}
 .wifi-item b{flex:1}
 .rssi{font-size:11px;color:var(--muted)}
-#mirrorWrap{transition:.3s}
-@media(max-width:900px){#mirrorScreen{transform:scale(0.6);margin:-96px 0} #mirrorWrap{height:320px}}
-@media(max-width:600px){#mirrorScreen{transform:scale(0.38);margin:-148px 0} #mirrorWrap{height:220px}}
+#globalMirror{transition:.3s;overflow:hidden}
+#mirrorScreen{transform:scale(0.72);margin:0}
+@media(max-width:900px){#mirrorScreen{transform:scale(0.5)} #globalMirror{height:280px}}
+@media(max-width:600px){#mirrorScreen{transform:scale(0.33)} #globalMirror{height:200px}}
+@media(max-width:400px){#mirrorScreen{transform:scale(0.28)} #globalMirror{height:170px}}
 </style>
 </head>
 <body>
 <div class="top">
  <h1>PAINEL FINANCEIRO</h1>
  <small id="sub">Horário e câmbio em tempo real</small>
- <span id="ipBadge" class="badge ok" style="margin-left:auto">IP: --</span>
+ <button id="globalMirrorBtn" onclick="toggleMirror()" style="margin-left:auto;background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:999px;cursor:pointer;font-size:12px;font-weight:700">👁️ Tela</button>
+ <span id="ipBadge" class="badge ok">IP: --</span>
  <span id="wifiBadge" class="badge ok">WiFi</span>
+</div>
+
+<!-- ESPELHAMENTO GLOBAL - idêntico em proporção menor, visível em todas as abas -->
+<div id="globalMirror" style="max-width:1200px;margin:14px auto;background:#000;padding:12px;border-radius:16px;border:2px solid #d4a017;box-shadow:0 0 0 4px #8c6b00 inset;display:flex;justify-content:center;overflow:hidden">
+ <div id="mirrorScreen" style="width:800px;min-width:800px;height:480px;background:linear-gradient(180deg,#070A12,#0E1420);border:4px solid #333;border-radius:8px;overflow:hidden;transform-origin:top left;position:relative;transform:scale(0.72)">
+  <div style="height:28px;background:#06080D;border-bottom:1px solid #1E2A3A;display:flex;align-items:center;padding:0 10px;gap:8px">
+   <div style="width:4px;height:18px;background:#22D3EE;border-radius:2px"></div>
+   <span style="font-size:10px;font-weight:800;letter-spacing:1px">PAINEL FINANCEIRO</span>
+   <span style="font-size:8px;color:#7A8699;margin-left:6px">Horario e cambio em tempo real</span>
+   <span id="mTime" style="margin-left:auto;font-size:10px;color:#7A8699">--:--:--</span>
+   <span id="mIp" style="font-size:8px;color:#00E676">IP: --</span>
+  </div>
+  <div id="mBody" style="padding:10px;display:grid;gap:8px;height:calc(100% - 28px);align-content:start"></div>
+ </div>
 </div>
 
 <div class="tabs">
@@ -98,27 +115,6 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
   <h2>PRÉVIA CLIMA</h2>
   <div id="climaPreview">Selecione a cidade para ver</div>
   <button class="btn-dark" onclick="previewClima()">👁️ Ver agora</button>
- </div>
- <div class="card accent" style="grid-column:1/-1">
-  <div style="display:flex;align-items:center;gap:10px">
-   <h2 style="margin:0">🖥️ ESPELHAMENTO DA TELA</h2>
-   <span style="font-size:11px;color:var(--muted)">tempo real</span>
-   <button class="btn-dark" style="margin-left:auto;width:auto;padding:6px 12px;font-size:12px" onclick="toggleMirror()" id="mirrorBtn">👁️ Esconder</button>
-  </div>
-  <div id="mirrorWrap" style="margin-top:12px;display:flex;justify-content:center;background:#000;padding:14px;border-radius:16px;border:2px solid #d4a017;box-shadow:0 0 0 4px #8c6b00 inset">
-   <div id="mirrorScreen" style="width:800px;max-width:100%;height:480px;background:linear-gradient(180deg,#070A12,#0E1420);border:4px solid #333;border-radius:8px;overflow:hidden;transform-origin:top center;position:relative">
-    <div style="height:28px;background:#06080D;border-bottom:1px solid #1E2A3A;display:flex;align-items:center;padding:0 10px;gap:8px">
-     <div style="width:4px;height:18px;background:#22D3EE;border-radius:2px"></div>
-     <span style="font-size:10px;font-weight:800;letter-spacing:1px">PAINEL FINANCEIRO</span>
-     <span id="mTime" style="margin-left:auto;font-size:10px;color:#7A8699">--:--:--</span>
-     <span id="mIp" style="font-size:8px;color:var(--green)">IP: --</span>
-    </div>
-    <div id="mBody" style="padding:10px;display:grid;gap:8px;height:calc(100% - 28px);align-content:start">
-     <!-- preenchido via JS -->
-    </div>
-   </div>
-  </div>
-  <small style="color:var(--muted)">Réplica fiel do display 7" — atualiza a cada 2s. Clique no 👁️ para esconder.</small>
  </div>
 </div>
 
@@ -253,7 +249,7 @@ async function loadConfig(){
  document.getElementById('ssid').value=j.ssid; document.getElementById('ipBadge').textContent='IP: '+j.ip; document.getElementById('about').innerHTML=`<div class="kv"><span>IP</span><b>${j.ip}</b></div><div class="kv"><span>SSID</span><b>${j.ssid}</b></div><div class="kv"><span>Lat/Lon</span><b>${j.lat}, ${j.lon}</b></div>`;
  log('Config carregado'); previewTodasMoedas(); previewClima();
 }
-function toggleMirror(){let w=document.getElementById('mirrorWrap'); let b=document.getElementById('mirrorBtn'); if(w.style.display==='none'){w.style.display='flex'; b.textContent='👁️ Esconder'} else {w.style.display='none'; b.textContent='👁️ Mostrar'}}
+function toggleMirror(){let w=document.getElementById('globalMirror'); let b=document.getElementById('globalMirrorBtn'); if(w.style.display==='none'){w.style.display='flex'; b.textContent='👁️ Tela'; b.style.opacity='1'} else {w.style.display='none'; b.textContent='👁️ Tela'; b.style.opacity='0.5'} }
 function updateMirror(j){
  let m=document.getElementById('mBody'); if(!m) return;
  document.getElementById('mTime').textContent=j.time; document.getElementById('mIp').textContent='IP: '+j.ip;
