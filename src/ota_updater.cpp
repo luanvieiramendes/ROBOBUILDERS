@@ -4,8 +4,25 @@
 #include <HTTPClient.h>
 #include <Update.h>
 #include <ArduinoJson.h>
+#include <esp_task_wdt.h>
 
 OtaInfo gOta;
+
+// Update roda em task background para nao travar o webserver/loop
+// e nao estourar o Task Watchdog (WDT) que reseta o ESP32 em updates longos
+static TaskHandle_t sOtaTaskHandle = NULL;
+static volatile bool sOtaRequested = false;
+
+static void otaTask(void *param){
+  // task dedicada: sem WDT da loopTask, download pode demorar
+  for(;;){
+    if(sOtaRequested){
+      sOtaRequested = false;
+      otaUpdate();
+    }
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+}
 
 static String normalizeVersion(String v){
   v.replace("v",""); v.replace("V",""); v.trim();
@@ -24,7 +41,14 @@ String otaGetCurrentVersion(){ return String(FIRMWARE_VERSION); }
 void otaInit(){
   gOta.current = String(FIRMWARE_VERSION);
   gOta.state = OTA_IDLE;
+  if(sOtaTaskHandle == NULL){
+    xTaskCreatePinnedToCore(otaTask, "ota_task", 8192, NULL, 1, &sOtaTaskHandle, 0);
+  }
   Serial.printf("[OTA] versao atual %s (%d)\n", FIRMWARE_VERSION, FIRMWARE_VERSION_CODE);
+}
+
+void otaRequestUpdate(){
+  sOtaRequested = true; // task em background executa otaUpdate()
 }
 
 // Fallback sem API: segue o redirect de /releases/latest e extrai a tag
@@ -225,6 +249,7 @@ bool otaUpdate(){
   int written = 0;
   unsigned long last = millis();
   while(http.connected() && (len > 0 || len == -1)){
+    esp_task_wdt_reset(); // alimenta WDT durante download longo
     size_t size = stream->available();
     if(size){
       int c = stream->readBytes(buff, (size > sizeof(buff)) ? sizeof(buff) : size);

@@ -510,10 +510,9 @@ void handleOtaCheck() {
   webServer.send(200,"application/json",out);
 }
 void handleOtaUpdate() {
-  // inicia em background para nao travar resposta
-  webServer.send(200,"application/json","{\"msg\":\"iniciando OTA, aguarde...\",\"ok\":true}");
-  delay(200);
-  otaUpdate();
+  // agenda update em task background - nao bloqueia o webserver nem o loop
+  otaRequestUpdate();
+  webServer.send(200,"application/json","{\"msg\":\"iniciando OTA em background, aguarde...\",\"ok\":true}");
 }
 
 void handleRestart() {
