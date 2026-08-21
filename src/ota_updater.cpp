@@ -47,7 +47,8 @@ void otaInit(){
   gOta.current = String(FIRMWARE_VERSION);
   gOta.state = OTA_IDLE;
   if(sOtaTaskHandle == NULL){
-    xTaskCreatePinnedToCore(otaTask, "ota_task", 8192, NULL, 1, &sOtaTaskHandle, 0);
+    // stack generosa: HTTPClient + WiFiClient + buffer de download estouram 8KB facilmente
+    xTaskCreatePinnedToCore(otaTask, "ota_task", 32768, NULL, 1, &sOtaTaskHandle, 0);
   }
   Serial.printf("[OTA] versao atual %s (%d)\n", FIRMWARE_VERSION, FIRMWARE_VERSION_CODE);
 }
