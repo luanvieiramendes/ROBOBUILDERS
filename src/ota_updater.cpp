@@ -12,6 +12,7 @@ OtaInfo gOta;
 // e nao estourar o Task Watchdog (WDT) que reseta o ESP32 em updates longos
 static TaskHandle_t sOtaTaskHandle = NULL;
 static volatile bool sOtaRequested = false;
+static volatile bool sOtaBusy = false;
 
 static void otaTask(void *param){
   // task dedicada: sem WDT da loopTask, download pode demorar
@@ -19,6 +20,7 @@ static void otaTask(void *param){
     if(sOtaRequested){
       sOtaRequested = false;
       otaUpdate();
+      sOtaBusy = false;
     }
     vTaskDelay(pdMS_TO_TICKS(100));
   }
@@ -48,7 +50,10 @@ void otaInit(){
 }
 
 void otaRequestUpdate(){
-  sOtaRequested = true; // task em background executa otaUpdate()
+  if(!sOtaBusy){
+    sOtaBusy = true;
+    sOtaRequested = true; // task em background executa otaUpdate()
+  }
 }
 
 // Fallback sem API: segue o redirect de /releases/latest e extrai a tag
@@ -101,6 +106,7 @@ static bool checkViaRedirect(String &tagOut){
 }
 
 bool otaCheck(bool showLog){
+  if(gOta.state == OTA_UPDATING) return false; // nao interfere durante update
   if(WiFi.status()!=WL_CONNECTED){
     gOta.error = "WiFi desconectado";
     gOta.state = OTA_FAILED;
@@ -197,9 +203,11 @@ bool otaCheck(bool showLog){
 }
 
 bool otaUpdate(){
-  if(gOta.downloadUrl.length()==0){
+  String url = gOta.downloadUrl; // copia local: imune a otaCheck() concorrente limpar a URL
+  if(url.length()==0){
     gOta.error = "sem URL, faca Verificar antes";
     gOta.state = OTA_FAILED;
+    Serial.println("[OTA] " + gOta.error);
     return false;
   }
   if(WiFi.status()!=WL_CONNECTED){
@@ -209,11 +217,11 @@ bool otaUpdate(){
   }
   gOta.state = OTA_UPDATING;
   gOta.progress = 0;
-  Serial.println("[OTA] iniciando download " + gOta.downloadUrl);
+  Serial.println("[OTA] iniciando download " + url);
   HTTPClient http;
   http.setTimeout(20000);
   http.addHeader("User-Agent", "ESP32-OTA");
-  http.begin(gOta.downloadUrl);
+  http.begin(url);
   http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
   int code = http.GET();
 
