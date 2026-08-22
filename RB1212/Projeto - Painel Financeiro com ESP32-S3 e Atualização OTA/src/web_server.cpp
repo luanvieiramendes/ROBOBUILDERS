@@ -157,7 +157,7 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34
   <div style="height:8px;background:#0F1622;border-radius:999px;overflow:hidden;margin:8px 0"><div id="otaBar" style="height:100%;background:var(--green);width:0%"></div></div>
   <div id="otaMsg" style="font-size:11px;color:var(--muted);min-height:16px"></div>
   <div class="row"><button class="btn-dark" onclick="otaCheck()">🔍 Verificar</button><button class="btn-green" onclick="otaUpdate()">⬇️ Atualizar agora</button></div>
-  <small style="color:var(--muted)">Auto a cada 6h. Bin gerado por Action em <code>antony1727/ESTAGIO-</code> tag <code>v*.*.*</code></small>
+  <small style="color:var(--muted)">Auto a cada 6h. Bin gerado por Action em <code>luanvieiramendes/ROBOBUILDERS</code> tag <code>v*.*.*</code></small>
  </div>
  <div class="card">
   <h2>WIFI - REDES PRÓXIMAS (sem digitar SSID)</h2>

@@ -64,7 +64,7 @@ Esquemático e demo original em `7.0inch_ESP32-8048S070/1-Demo/Demo_Arduino/3_3-
 ## Estrutura do Projeto
 
 ```
-ESP32/
+Projeto - Painel Financeiro com ESP32-S3 e Atualização OTA/
 ├── platformio.ini
 ├── src/
 │   ├── main.cpp                 # setup/loop, LVGL, WiFi, NTP, timers, gNeedsRebuild
@@ -88,8 +88,8 @@ ESP32/
 ### 2. Clonar e buildar
 
 ```bash
-git clone https://github.com/antony1727/ESTAGIO-.git
-cd ESP32
+git clone https://github.com/luanvieiramendes/ROBOBUILDERS.git
+cd "RB1212/Projeto - Painel Financeiro com ESP32-S3 e Atualização OTA"
 pio run -e esp32-8048s070 --target upload --upload-port COM5
 pio device monitor --port COM5 --baud 115200
 ```
@@ -237,8 +237,8 @@ git tag v2.0.7 && git push origin v2.0.7
 ```cpp
 #define FIRMWARE_VERSION "2.0.7"
 #define FIRMWARE_VERSION_CODE 207 // 2.0.7 = 207
-#define GITHUB_REPO "antony1727/ESTAGIO-"
-#define GITHUB_API_LATEST "https://api.github.com/repos/antony1727/ESTAGIO-/releases/latest"
+#define GITHUB_REPO "luanvieiramendes/ROBOBUILDERS"
+#define GITHUB_API_LATEST "https://api.github.com/repos/luanvieiramendes/ROBOBUILDERS/releases/latest"
 ```
 
 Incremente `FIRMWARE_VERSION` + `CODE` (`2.0.6→2.0.7 = 207`) a cada release. `CODE = maj*100+min*10+pat`.
@@ -322,9 +322,9 @@ git push origin main
 git tag v2.0.7
 git push origin v2.0.7   # <-- este push cria o Release
 
-# 4. acompanhe: https://github.com/antony1727/ESTAGIO-/actions
+# 4. acompanhe: https://github.com/luanvieiramendes/ROBOBUILDERS/actions
 #    → workflow "Build and Release Firmware" verde
-#    → https://github.com/antony1727/ESTAGIO-/releases → firmware-v2.0.7.bin + firmware-latest.bin
+#    → https://github.com/luanvieiramendes/ROBOBUILDERS/releases → firmware-v2.0.7.bin + firmware-latest.bin
 
 # 5. ESP busca automaticamente (15s pós-boot, 6h, e auto-update ~30s)
 #    ou manual: WebServer → Sistema → OTA → 🔍 Verificar → ⬇️ Atualizar agora → barra 0-100% → restart auto
@@ -337,7 +337,7 @@ Log de sucesso no Serial Monitor (115200):
 
 ```
 [OTA] atual=2.0.6 (206) latest=2.0.7 (207)
-[OTA] url=https://github.com/antony1727/ESTAGIO-/releases/download/v2.0.7/firmware-v2.0.7.bin
+[OTA] url=https://github.com/luanvieiramendes/ROBOBUILDERS/releases/download/v2.0.7/firmware-v2.0.7.bin
 [OTA] Atualizacao disponivel: v2.0.7
 [OTA] auto update disponivel, baixando em background...
 [OTA] iniciando download https://github.com/.../firmware-v2.0.7.bin
@@ -486,5 +486,5 @@ Edite `src/LGFX_ESP32_8048S070.h:33` pinagem e `src/main.cpp:96` `create_ui()` c
 
 MIT — use livremente em outros projetos. Mantenha créditos.
 
-> **Autor:** Antony — `antony1727/ESTAGIO-` — `ESP32-8048S070` `S3` `LovyanGFX` `LVGL` `ArduinoJson`
+> **Autor:** Antony — `luanvieiramendes/ROBOBUILDERS` — `ESP32-8048S070` `S3` `LovyanGFX` `LVGL` `ArduinoJson`
 
