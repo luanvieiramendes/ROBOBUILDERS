@@ -208,34 +208,36 @@ RB2553/
 
 ---
 
+---
+
 ## Como Compilar e Gravar via PlatformIO CLI
 
 O gerenciamento, compilação e gravação do projeto são feitos diretamente via **PlatformIO Core (CLI)** pelo terminal.
 
 ### 1. Compilar o Firmware
-`ash
+```bash
 pio run
-`
+```
 
 ### 2. Gravar o Firmware na Placa
-`ash
+```bash
 pio run -t upload
-`
+```
 
 ### 3. Especificar a Porta Serial Manualmente
-`ash
+```bash
 pio run -t upload --upload-port COM3
-`
+```
 
 ### 4. Abrir o Monitor Serial
-`ash
+```bash
 pio device monitor
-`
+```
 
 ### 5. Limpar Arquivos de Build
-`ash
+```bash
 pio run -t clean
-`
+```
 
 ---
 
@@ -247,22 +249,6 @@ Se optar por utilizar a Arduino IDE:
 3. Selecione a **Porta COM** correspondente ao seu conversor USB-Serial.
 4. No **Gerenciador de Bibliotecas**, instale a biblioteca ArduinoJson (versão 6.x).
 5. Clique em **Carregar (Upload)**.
-
-
-### Opção A: Via PlatformIO (VS Code ou CLI)
-1. Para compilar e gravar no ESP32 conectado:
-   ```bash
-   pio run --target upload
-   ```
-2. Para abrir o monitor serial (115200 bps):
-   ```bash
-   pio device monitor -b 115200
-   ```
-
-### Opção B: Via Arduino IDE
-1. Abra o arquivo [`ROBOBUILDERS_RB2556.ino`](ROBOBUILDERS_RB2553/ROBOBUILDERS_RB2553.ino).
-2. Em **Ferramentas > Placa**, selecione **ESP32 Dev Module**.
-3. Selecione a porta COM e clique em **Carregar**.
 
 ---
 

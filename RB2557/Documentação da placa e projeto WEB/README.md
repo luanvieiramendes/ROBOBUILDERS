@@ -76,34 +76,36 @@ Após o término da gravação com sucesso:
 
 ---
 
+---
+
 ## Como Compilar e Gravar via PlatformIO CLI
 
 O gerenciamento, compilação e gravação do projeto são feitos diretamente via **PlatformIO Core (CLI)** pelo terminal.
 
 ### 1. Compilar o Firmware
-`ash
+```bash
 pio run
-`
+```
 
 ### 2. Gravar o Firmware na Placa
-`ash
+```bash
 pio run -t upload
-`
+```
 
 ### 3. Especificar a Porta Serial Manualmente
-`ash
+```bash
 pio run -t upload --upload-port COM3
-`
+```
 
 ### 4. Abrir o Monitor Serial
-`ash
+```bash
 pio device monitor
-`
+```
 
 ### 5. Limpar Arquivos de Build
-`ash
+```bash
 pio run -t clean
-`
+```
 
 ---
 
@@ -115,16 +117,3 @@ Se optar por utilizar a Arduino IDE:
 3. Selecione a **Porta COM** correspondente ao seu conversor USB-Serial.
 4. No **Gerenciador de Bibliotecas**, instale a biblioteca ArduinoJson (versão 6.x).
 5. Clique em **Carregar (Upload)**.
-
-
----
-
-## 🌐 COMO O USUÁRIO ACESSA O PAINEL WEB
-
-1. Ligue a placa **ROBOBUILDERS RB2557**.
-2. No celular, tablet ou computador, conecte na rede Wi-Fi:
-   - **SSID**: `ROBOBUILDERS-RB2557`
-   - **Senha**: *(Rede aberta, sem senha)*
-3. Abra o navegador web e acesse:
-   - **URL**: `http://192.168.4.1`
-4. O painel em **Modo Escuro** carregará automaticamente com monitoramento e controle em tempo real.
