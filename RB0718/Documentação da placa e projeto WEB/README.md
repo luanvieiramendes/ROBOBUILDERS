@@ -9,21 +9,23 @@
 - [3. Mapeamento de Pinos (Pinout Oficial)](#3-mapeamento-de-pinos-pinout-oficial)
 - [4. Recursos do Painel Web](#4-recursos-do-painel-web)
 - [5. Documentação da API REST](#5-documentação-da-api-rest)
-- [6. Guia de Conexão e Gravação USB Type-C](#6-guia-de-conexão-e-gravação-usb-type-c)
-- [7. Estrutura do Repositório](#7-estrutura-do-repositório)
-- [8. Como Compilar e Enviar](#8-como-compilar-e-enviar)
+- [6. Estrutura do Repositório](#6-estrutura-do-repositório)
+- [7. Como Compilar e Gravar via PlatformIO CLI](#7-como-compilar-e-gravar-via-platformio-cli)
+- [8. Opção Alternativa: Arduino IDE](#8-opção-alternativa-arduino-ide)
 - [9. Acesso ao Painel Web](#9-acesso-ao-painel-web)
 
 ---
 
 ## 1. Visão Geral do Projeto
 
-O **ROBOBUILDERS RB0718** é o firmware de validação e diagnóstico de fábrica (*Board Diagnostic / Hardware Test*) para a placa de desenvolvimento **ESP32 Dev Kit (com conector USB Type-C)** equipada com o módulo **ESP32-WROOM-32**.
+O **ROBOBUILDERS RB0718** é o firmware de validação e diagnóstico de fábrica (*Hardware Diagnostic / Board Test*) para a placa de desenvolvimento **ESP32 Dev Kit (com conector USB Type-C)** equipada com o módulo **ESP32-WROOM-32**.
 
 O firmware inicializa um **Ponto de Acesso Wi-Fi autônomo** (`ROBOBUILDERS-RB0718`) com **Portal Captivo** e uma interface web moderna em **Modo Escuro (Dark Mode)**, permitindo testar e controlar:
 - O **LED Built-in** azul onboard (**GPIO 2**).
 - O botão físico **BOOT / IO0** (**GPIO 0**).
-- Todos os barramentos de pinos **GPIOs** digitais e de entrada analógica/sensores expostos no barramento da placa diretamente via navegador pelo smartphone ou computador, sem necessidade de aplicativo ou internet externa.
+- Todos os barramentos de pinos **GPIOs** digitais e de entrada analógica/sensores expostos na placa diretamente via navegador pelo smartphone ou computador, sem necessidade de internet externa.
+
+![Interface Web RB0718](img/TELA-INICIAL.png)
 
 ---
 
@@ -34,8 +36,8 @@ O firmware inicializa um **Ponto de Acesso Wi-Fi autônomo** (`ROBOBUILDERS-RB07
 | **Identificador do Produto** | ROBOBUILDERS RB0718 |
 | **Modelo da Placa Base** | ESP32 Dev Kit V1 / NodeMCU-32S (Type-C) |
 | **Microcontrolador** | ESP32-WROOM-32 (Dual Core Xtensa® 32-bit LX6 @ 240 MHz, 4MB Flash, 520KB SRAM) |
-| **Conector USB** | USB Type-C (Comunicação de dados e alimentação) |
-| **Conversor USB-Serial** | CH340C / CP2102 onboard com auto-reset |
+| **Conector USB** | USB Type-C (Comunicação serial de dados e alimentação) |
+| **Conversor USB-Serial** | CH340C / CP2102 onboard com circuito auto-reset |
 | **LED Onboard (Built-in)** | LED Azul conectado ao **`GPIO 2`** |
 | **Botões Físicos** | Botão `BOOT / IO0` (GPIO 0) e Botão `EN / RST` (Reset de hardware) |
 | **Tensão de Operação** | 3.3V DC (Níveis lógicos das GPIOs) |
@@ -66,7 +68,7 @@ O painel web é servido diretamente pela memória Flash do ESP32 via Wi-Fi SoftA
 
 2. **Seção 2 - Mapeamento e Controle de Todas as GPIOs**:
    - Controle individual de saídas digitais em tempo real.
-   - Botões de ação em lote: **"⚡ Ligar Todas as Saídas"** e **"🛑 Desligar Todas as Saídas"**.
+   - Botões de ação em lote: **"⚡ Ligar Todas as Saídas"** e **"🛑 Desligar Todas as Saídas"** (*All ON / All OFF*).
    - Configuração de modo por pino através do ícone ⚙️ (**OUTPUT** ou **INPUT com Pull-Up**).
    - Proteção de hardware para os pinos `GPIO 34, 35, 36 (VP) e 39 (VN)` (bloqueados como Input-Only no hardware ESP32).
 
@@ -111,15 +113,7 @@ Liga (`state=1`) ou desliga (`state=0`) simultaneamente todos os pinos configura
 
 ---
 
-## 6. Guia de Conexão e Gravação USB Type-C
-
-1. Conecte a placa **RB0718 (ESP32 Dev Kit)** ao computador utilizando um **cabo USB Type-C de dados**.
-2. Abra o **Gerenciador de Dispositivos** (Windows) e identifique a porta COM atribuída (exemplo: `COM3`, `COM4`).
-3. O circuito de auto-reset da placa coloca o ESP32 em modo de gravação automaticamente. Se necessário em algum computador específico, mantenha pressionado o botão **BOOT** ao iniciar a gravação e solte após o início da transferência.
-
----
-
-## 7. Estrutura do Repositório
+## 6. Estrutura do Repositório
 
 ```text
 📁 Documentação da placa e projeto WEB/
@@ -134,33 +128,66 @@ Liga (`state=1`) ou desliga (`state=0`) simultaneamente todos os pinos configura
 ├── 📁 src/
 │   └── main.cpp                     --> Código principal para PlatformIO
 │
-├── 📁 img/                          --> Diagramas e imagens de documentação
-├── platformio.ini                    --> Arquivo de configuração do PlatformIO
+├── 📁 img/                          --> Imagens e capturas da documentação
+│   └── TELA-INICIAL.png
+│
+├── platformio.ini                    --> Arquivo de configuração do PlatformIO CLI
 └── README.md                        --> Documentação técnica completa
 ```
 
 ---
 
-## 8. Como Compilar e Enviar
+## 7. Como Compilar e Gravar via PlatformIO CLI
 
-### Opção A: Usando VS Code + PlatformIO (Recomendado)
-1. Abra a pasta do projeto no **VS Code**.
-2. Verifique a porta COM no arquivo [platformio.ini](file:///c:/xampp/htdocs/ROBOBUILDERS/RB0718/Documenta%C3%A7%C3%A3o%20da%20placa%20e%20projeto%20WEB/platformio.ini) (`upload_port = COMx`).
-3. Clique no ícone de **Upload (Seta para a direita)** na barra inferior do PlatformIO.
+O gerenciamento, compilação e gravação do projeto são feitos diretamente via **PlatformIO Core (CLI)** pelo terminal.
 
-### Opção B: Usando Arduino IDE
-1. Abra a pasta `ROBOBUILDERS_RB0718/` e abra o arquivo `ROBOBUILDERS_RB0718.ino`.
-2. Em **Ferramentas > Placa**, selecione **ESP32 Dev Module**.
-3. Selecione a **Porta COM** correspondente.
-4. Instale a biblioteca `ArduinoJson` (versão 6.x) pelo Gerenciador de Bibliotecas.
+### 1. Compilar o Firmware
+Para compilar o código e verificar eventuais erros de compilação:
+```bash
+pio run
+```
+
+### 2. Gravar o Firmware na Placa
+Para compilar e enviar automaticamente o binário para o ESP32 conectado:
+```bash
+pio run -t upload
+```
+
+### 3. Especificar a Porta Serial Manualmente
+Caso queira forçar uma porta COM específica (ex: `COM3`, `COM4`):
+```bash
+pio run -t upload --upload-port COM3
+```
+
+### 4. Abrir o Monitor Serial
+Para acompanhar as mensagens de log e inicialização do ESP32 a 115200 bps:
+```bash
+pio device monitor
+```
+*(Ou especificando a porta: `pio device monitor --port COM3`)*
+
+### 5. Limpar Arquivos de Build
+```bash
+pio run -t clean
+```
+
+---
+
+## 8. Opção Alternativa: Arduino IDE
+
+Se optar por utilizar a Arduino IDE:
+1. Abra o arquivo `ROBOBUILDERS_RB0718/ROBOBUILDERS_RB0718.ino`.
+2. Em **Ferramentas > Placa > ESP32 Arduino**, selecione **ESP32 Dev Module**.
+3. Selecione a **Porta COM** correspondente ao seu cabo USB Type-C.
+4. No **Gerenciador de Bibliotecas**, instale a biblioteca `ArduinoJson` (versão 6.x).
 5. Clique em **Carregar (Upload)**.
 
 ---
 
 ## 9. Acesso ao Painel Web
 
-1. Após ligar o ESP32, conecte seu celular, tablet ou computador à rede Wi-Fi:
+1. Após alimentar o ESP32 via USB Type-C, conecte seu celular, tablet ou computador à rede Wi-Fi gerada:
    - **Nome da Rede (SSID):** `ROBOBUILDERS-RB0718`
    - **Senha:** *(Rede Aberta, sem senha)*
-2. O portal de conexão abrirá automaticamente. Caso não abra, acesse no navegador:
+2. O portal de conexão abrirá automaticamente. Caso não abra, digite no navegador:
    - **URL / IP:** `http://192.168.4.1`
