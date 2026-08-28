@@ -1,193 +1,87 @@
-# 📘 DOCUMENTAÇÃO TÉCNICA: PLACA DE CONTROLE E PROJETO WEB IOT
-### *Módulo ESP32 Relay X1 V1.2 • Sensor DHT22 • Plataforma Web Cloudflare Pages & Supabase Cloud*
+# 📘 DOCUMENTAÇÃO TÉCNICA: ROBOBUILDERS RB2557 (ESP32 HELLO WORLD TEST BOARD)
+### *Ponto de Acesso Local Wi-Fi (SSID: ROBOBUILDERS-RB2557) • Teste de Hardware em Modo Escuro • Mapeamento Input/Output Configurável*
 
 ---
 
-## 📑 ÍNDICE DA DOCUMENTAÇÃO
+## 🎯 PROPÓSITO DO FIRMWARE
 
-1. [Especificações Técnicas da Placa ESP32_RELAY X1_V1.2](#1-especificações-técnicas-da-placa-esp32_relay-x1_v12)
-2. [Pinout, Conexões e Mapeamento de Hardware](#2-pinout-conexões-e-mapeamento-de-hardware)
-3. [Esquema de Ligação Elétrica do Sensor e da Carga](#3-esquema-de-ligação-elétrica-do-sensor-e-da-carga)
-4. [Engenharia do Sensor de Temperatura e Umidade DHT22](#4-engenharia-do-sensor-de-temperatura-e-umidade-dht22)
-5. [Estágio de Potência e Acionamento do Relé de Carga](#5-estágio-de-potência-e-acionamento-do-relé-de-carga)
-6. [Arquitetura da Aplicação Web e Infraestrutura de Nuvem](#6-arquitetura-da-aplicação-web-e-infraestrutura-de-nuvem)
-7. [Fluxo de Dados em Tempo Real (Realtime Pipeline)](#7-fluxo-de-dados-em-tempo-real-realtime-pipeline)
-8. [Procedimentos de Comissionamento, Teste e Segurança](#8-procedimentos-de-comissionamento-teste-e-segurança)
+O firmware **ROBOBUILDERS RB2557** é o software de fábrica (*Hello World*) que acompanha a placa para testes e validações rápidas de todos os recursos de hardware.
+
+- **Modo Escuro (Dark Mode)** de alto contraste e resposta em tempo real.
+- **Acionamento de Cargas e Indicadores**: LED Onboard (GPIO 23) e Relé de Potência (GPIO 16).
+- **Mapeamento Flexível de GPIOs**: Cada pino digital possui um ícone de engrenagem (⚙️) para configuração dinâmica entre **OUTPUT** (Saída Digital) e **INPUT** (Entrada Digital com Pull-Up).
+- **Leitura do Botão Físico**: Leitura em tempo real do estado do botão BOOT (GPIO 0).
 
 ---
 
-# 1. ESPECIFICAÇÕES TÉCNICAS DA PLACA ESP32_RELAY X1_V1.2
+## 🔌 GUIA DE GRAVAÇÃO COM CONVERSOR USB-SERIAL (PASSO A PASSO)
 
-A placa **ESP32_RELAY X1_V1.2** é uma plataforma compacta de automação industrial e predial que combina a alta capacidade computacional do SoC **ESP32-WROOM-32E** com um estágio de acionamento de potência isolado por relé.
+Para gravar o firmware no ESP32 da placa **ROBOBUILDERS RB2557** utilizando um conversor USB-Serial externo (como CP2102, FT232RL/FTDI, CH340 ou PL2303), siga o procedimento detalhado abaixo.
 
-```
-+------------------------------------+---------------------------------------------------+
-| REQUISITO / ESPECIFICAÇÃO          | DETALHAMENTO DE ENGENHARIA                        |
-+------------------------------------+---------------------------------------------------+
-| Microcontrolador Central           | Espressif ESP32-WROOM-32E (Dual-Core Xtensa 32-bit)|
-| Frequência de Operação (Clock)     | 240 MHz (até 600 DMIPS)                           |
-| Memória SRAM Interna               | 520 KB SRAM                                       |
-| Memória Flash Externa              | 4 MB SPI Flash (com suporte a NVS e OTA)          |
-| Conectividade Sem Fio              | Wi-Fi 802.11 b/g/n (2.4 GHz) + Bluetooth v4.2 BLE|
-| Tensão de Operação Lógica          | 3.3V DC                                           |
-| Tensão de Entrada de Alimentação   | 5V DC via Micro-USB ou Borne de Entrada           |
-| Regulador de Tensão Linear (LDO)   | AMS1117-3.3V (Saída de até 800 mA com ripple baixo)|
-| Relé Eletromecânico de Potência    | 1 Canal SPDT (Songle / Equivalente Industrial)    |
-| Capacidade de Carga do Relé        | 10A @ 250VAC / 10A @ 30VDC                        |
-| Interface Serial / Gravador        | USB-UART com chip CP2102 ou CH340                 |
-+------------------------------------+---------------------------------------------------+
-```
+### 1. Esquema de Ligação / Pinagem
+
+Conecte os pinos do seu módulo conversor USB-Serial aos pinos correspondentes na placa RB2557:
+
+| Conversor USB-Serial | Placa RB2557 (ESP32) | Observações |
+| :--- | :--- | :--- |
+| **GND** | **GND** | Obrigatório (Referência de terra comum) |
+| **TXD (Transmissão)** | **RXD0 / GPIO 3** | Cruzado: TX do conversor vai no RX do ESP32 |
+| **RXD (Recepção)** | **TXD0 / GPIO 1** | Cruzado: RX do conversor vai no TX do ESP32 |
+| **5V / VCC** | **5V / VIN** | Alimentação da placa (ou use 3.3V no pino 3V3) |
+
+> ⚠️ **Importante**: Certifique-se de que os níveis lógicos do conversor estejam em **3.3V** para proteger as entradas do ESP32.
 
 ---
 
-# 2. PINOUT, CONEXÕES E MAPEAMENTO DE HARDWARE
+### 2. Procedimento de Gravação (Modo Bootloader)
 
-### 📍 Tabela de Pinos do Microcontrolador:
+O ESP32 precisa entrar no modo de gravação (*Download Bootloader*) para receber o binário:
 
-| Pino / GPIO | Função Associada | Direção | Nível Elétrico | Descrição Funcional |
-| :--- | :--- | :--- | :--- | :--- |
-| **GPIO 4** | Linha de Dados DHT22 | Bidirecional | 3.3V Digital | Barramento de telemetria serial 1-Wire do sensor de temperatura e umidade. |
-| **GPIO 16** | Driver do Relé | Saída | 3.3V Digital | Nível lógico **HIGH (1)** liga o relé; Nível lógico **LOW (0)** desliga o relé. |
-| **GPIO 0** | Botão BOOT | Entrada | Pull-up Interno | Pressionado durante o boot coloca o ESP32 em modo de gravação UART. |
-| **GPIO 1** | UART0 TXD | Saída | 3.3V Serial | Linha de transmissão serial (Debug e Log a 115200 bps). |
-| **GPIO 3** | UART0 RXD | Entrada | 3.3V Serial | Linha de recepção serial para upload de firmware. |
-| **3V3** | Alimentação Lógica | Saída | +3.3V DC | Barramento regulado para sensores e circuitos de sinal. |
-| **5V / VIN**| Alimentação Principal | Entrada | +5.0V DC | Alimentação geral da placa e bobina do relé. |
-| **GND** | Referência Elétrica | Comum | 0V DC | Terra de sinal e alimentação do circuito. |
+1. **Conecte o conversor USB-Serial** ao computador e à placa RB2557 (com o cabo desconectado ou alimentação desligada).
+2. **Pressione e mantenha pressionado o botão BOOT (GPIO 0)** da placa RB2557.
+3. **Ligue a alimentação da placa** (ou conecte o conversor USB na porta do computador) mantendo o botão **BOOT pressionado** por cerca de 2 segundos e depois solte-o.
+   - *Alternativa*: Com a placa já ligada, segure **BOOT**, dê um clique rápido no botão **EN / RST (Reset)** e solte o **BOOT**.
+4. No terminal ou IDE, execute o comando de compilação e upload:
 
----
+```bash
+# Gravação automática na porta detectada
+pio run --target upload
 
-# 3. ESQUEMA DE LIGAÇÃO ELÉTRICA DO SENSOR E DA CARGA
-
-```
-                              +---------------------------------------+
-                              |         ESP32_RELAY X1_V1.2           |
-                              |                                       |
-                              |   [3.3V] --------+                    |
-                              |                  |                    |
-                              |   [GPIO 4] ------|----+               |
-                              |                  |    |               |
-                              |   [GND] ---------|----|----+          |
-                              |                  |    |    |          |
-                              |   [GPIO 16] -----> Driver Relé        |
-                              |                       |               |
-                              |                 [COM] [NO] [NC]       |
-                              +-------------------+----+---------------+
-                                                  |    |
-                      +---------------------------+    |
-                      |                                |
-                      v                                v
-                [Rede AC 110V/220V]             [Carga: Compressor,
-                   (Fase / Linha)              Resistência ou Bomba]
-                                                       |
-                                                       v
-                                              [Rede AC Neutro / Retorno]
-
-              +------------------------------------------+
-              |      SENSOR DIGITAL DHT22 / AM2302       |
-              |                                          |
-              |   Pino 1 (VCC)  ---> Conectar ao 3.3V     |
-              |   Pino 2 (DATA) ---> Conectar ao GPIO 4  |
-              |   Pino 3 (NC)   ---> Não Conectado       |
-              |   Pino 4 (GND)  ---> Conectar ao GND     |
-              |                                          |
-              |   * Resistor Pull-up de 10kΩ entre       |
-              |     VCC (Pino 1) e DATA (Pino 2)         |
-              +------------------------------------------+
+# Ou especificando a porta COM (Exemplo: COM3)
+pio run --target upload --upload-port COM3
 ```
 
----
-
-# 4. ENGENHARIA DO SENSOR DE TEMPERATURA E UMIDADE DHT22
-
-O sensor **DHT22 (AM2302)** utiliza um elemento capacitivo de umidade e um termistor NTC para medição de ar ambiente com alta estabilidade a longo prazo.
-
-### 📊 Características Metrológicas:
-- **Faixa de Temperatura:** -40.0 °C a +80.0 °C (Resolução: 0.1 °C | Exatidão: ±0.5 °C).
-- **Faixa de Umidade:** 0.0% a 99.9% UR (Resolução: 0.1% UR | Exatidão: ±2.0% UR).
-- **Período de Amostragem Recomendado:** 2 a 5 segundos (evita o autoaquecimento do chip interno).
-- **Protocolo de Comunicação:** Trem de pulsos de 40 bits (16 bits de umidade, 16 bits de temperatura, 8 bits de checksum de paridade).
+5. O `esptool` detectará o chip (`Chip is ESP32-D0WD-V3`), gravará os blocos de memória e exibirá `[SUCCESS]`.
 
 ---
 
-# 5. ESTÁGIO DE POTÊNCIA E ACIONAMENTO DO RELÉ DE CARGA
+### 3. Reinicialização e Execução
 
-O estágio de saída isolado permite acionar cargas indutivas e resistivas com total segurança galvânica:
-- **Contatos SPDT Disponíveis:**
-  - **COM (Comum):** Entrada da fase ou tensão de alimentação da carga.
-  - **NO (Normalmente Aberto):** Conduz apenas quando o relé é acionado pelo firmware (circuito de trabalho padrão).
-  - **NC (Normalmente Fechado):** Conduz quando o relé está desligado e abre quando energizado.
-- **Proteção Indutiva:** Diodo Flyback em antiparalelo com a bobina para supressão de surtos de tensão (back-EMF).
-- **Recomendação para Cargas Indutivas Pesadas (Motores/Compressores):** Instalar um filtro Snubber RC (resistor de 100Ω 2W em série com capacitor de 100nF 400V) em paralelo com os contatos para estender a vida útil do relé.
+Após o término da gravação com sucesso:
+
+1. **Desligue e ligue a alimentação da placa** (Power Cycle) ou pressione o botão de **Reset (EN)**.
+2. O ESP32 iniciará a execução normal do firmware, criando a rede Wi-Fi do ponto de acesso.
 
 ---
 
-# 6. ARQUITETURA DA APLICAÇÃO WEB E INFRAESTRUTURA DE NUVEM
+## 📌 MAPEAMENTO DE PINOS
 
-```mermaid
-flowchart LR
-    ESP32[ESP32 Relay X1\n+ DHT22] <-->|HTTPS REST JSON| Supabase[(Supabase\nPostgreSQL + Auth)]
-    Supabase <-->|WebSockets CDC| WebApp[Cloudflare Pages\nFrontend SPA]
-    WebApp <-->|Interface Touch| User((Usuário\nMobile / Desktop))
-```
-
-### 🌐 Camadas da Solução Web:
-1. **Frontend Serverless Edge (Cloudflare Pages):**
-   - Single Page Application (SPA) ultra-leve desenvolvida em Vanilla HTML5, Tailwind CSS e JavaScript.
-   - Padrão **Mobile-First**: Touch targets de 44x48px, zero zoom no iOS, design responsivo fluido e cabeçalhos de segurança contra cache persistente.
-2. **Backend Serverless & Database (Supabase):**
-   - **Banco de Dados Relacional:** PostgreSQL 15 com tabelas `thermostat_config` e `thermostat_logs`.
-   - **Autenticação Segura:** Supabase GoTrue (JWT Tokens e controle de acesso).
-   - **Segurança:** Políticas Row Level Security (RLS) ativadas.
-   - **Engine em Tempo Real:** WebSockets via PostgreSQL Logical Replication CDC.
+| Componente | Pino Físico (GPIO) | Tipo Padrão | Descrição / Recursos |
+| :--- | :--- | :--- | :--- |
+| **LED Onboard** | **GPIO 23** | Saída Digital | Liga/Desliga e Piscar (500ms) |
+| **Relé de Potência** | **GPIO 16** | Saída Digital | Acionamento direto e Pulso temporizado de 1s |
+| **Botão Boot** | **GPIO 0** | Entrada Pull-Up | Leitura em tempo real (Pressionado / Solto) |
+| **Grade de GPIOs** | **GPIOs 2, 4, 5, 12, 13, 14, 15, 17, 18, 19, 21, 22, 25, 26, 27, 32, 33** | Configurável (Output / Input) | Engrenagem ⚙️ para alternar entre Saída e Entrada |
+| **Pinos de Entrada** | **GPIO 34, 35** | Entrada Digital | Pinos dedicados a entrada com leitura em tempo real |
 
 ---
 
-# 7. FLUXO DE DADOS EM TEMPO REAL (REALTIME PIPELINE)
+## 🌐 COMO O USUÁRIO ACESSA O PAINEL WEB
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant S as Sensor DHT22
-    participant E as ESP32 Firmware
-    participant DB as Supabase DB
-    participant RT as Supabase Realtime
-    participant UI as Painel Web (Cloudflare)
-
-    loop A cada 2 segundos
-        S->>E: Leitura Térmica (Temp & Umidade)
-        E->>E: Avaliação do Algoritmo de Histerese
-        alt Condição de Disparo Satisfeita
-            E->>E: Aciona / Desliga Relé (GPIO 16)
-        end
-    end
-
-    loop A cada 5 segundos
-        E->>DB: PATCH /rest/v1/thermostat_config (Telemetria)
-        DB->>RT: Dispara Evento postgres_changes
-        RT->>UI: Notificação WebSocket em Tempo Real
-        UI->>UI: Atualiza Gauges e Badges Instantaneamente
-    end
-
-    opt Usuário Altera Setpoint no Painel
-        UI->>DB: PATCH /rest/v1/thermostat_config (Novo Setpoint)
-        DB->>RT: Evento WebSocket
-        E->>DB: Sincroniza Parâmetros e Grava na Flash NVS
-    end
-```
-
----
-
-# 8. PROCEDIMENTOS DE COMISSIONAMENTO, TESTE E SEGURANÇA
-
-1. **Inspeção Visual Inicial:** Verificar se não há curtos-circuitos nas soldas dos bornes e garantir que a linha de 3.3V não esteja conectada diretamente à rede elétrica.
-2. **Gravação do Firmware:**
-   - Conectar cabo USB de dados na porta COM do computador.
-   - Compilar e gravar via PlatformIO a 115200 baud.
-3. **Provisionamento de Rede Wi-Fi:**
-   - Conectar na rede AP `Termostato-ESP32-Setup` (senha: `12345678`).
-   - Salvar o SSID e senha do Wi-Fi local através do portal captivo `192.168.4.1`.
-4. **Validação em Nuvem:**
-   - Abrir o dashboard no Cloudflare Pages.
-   - Efetuar login com as credenciais cadastradas no Supabase Auth.
-   - Verificar a telemetria ao vivo com status `ESP32 Online`.
+1. Ligue a placa **ROBOBUILDERS RB2557**.
+2. No celular, tablet ou computador, conecte na rede Wi-Fi:
+   - **SSID**: `ROBOBUILDERS-RB2557`
+   - **Senha**: *(Rede aberta, sem senha)*
+3. Abra o navegador web e acesse:
+   - **URL**: `http://192.168.4.1`
+4. O painel em **Modo Escuro** carregará automaticamente com monitoramento e controle em tempo real.
