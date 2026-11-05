@@ -12,6 +12,8 @@ O firmware **ROBOBUILDERS RB2558** é o software de fábrica (*Hello World*) des
 - **Mapeamento Flexível de GPIOs**: Cada pino digital livre possui um ícone de engrenagem (⚙️) para configuração dinâmica entre **OUTPUT** (Saída Digital) e **INPUT** (Entrada Digital com Pull-Up).
 - **Leitura do Botão Físico**: Leitura em tempo real do estado do botão **IO0 / BOOT** (**GPIO 0**).
 
+![Painel Web ROBOBUILDERS RB2558](img/TELA-INICIAL.png)
+
 ---
 
 ## ⚙️ ESPECIFICAÇÕES DA PLACA (`ESP32_Relay_X2`)

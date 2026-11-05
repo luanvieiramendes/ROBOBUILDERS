@@ -31,7 +31,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       --shadow-md: 0 8px 16px rgba(0,0,0,0.4);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text-main); padding: 14px; max-width: 980px; margin: 0 auto; line-height: 1.4; }
+    body { background: var(--bg); color: var(--text-main); padding: 14px; max-width: 1060px; margin: 0 auto; line-height: 1.4; }
 
     /* Top Header */
     header { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 18px 16px; margin-bottom: 18px; text-align: center; box-shadow: var(--shadow-sm); }
@@ -45,11 +45,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     .section-title { font-size: 1.1rem; color: #f1f5f9; margin: 20px 0 12px 4px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
 
     /* Hero Cards (LED, Relay 1, Relay 2, Boot) */
-    .hero-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 18px; }
-    .hero-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--radius); padding: 18px 16px; text-align: center; box-shadow: var(--shadow-sm); transition: all 0.2s; }
+    .hero-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(235px, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .hero-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--radius); padding: 18px 14px; text-align: center; box-shadow: var(--shadow-sm); transition: all 0.2s; }
     .hero-card.active { border-color: var(--green); background: rgba(16, 185, 129, 0.08); }
     .hero-card.led-active { border-color: var(--primary); background: rgba(14, 165, 233, 0.08); }
-    .hero-card h3 { font-size: 1.08rem; margin-bottom: 4px; color: #f8fafc; }
+    .hero-card h3 { font-size: 1.1rem; margin-bottom: 4px; color: #f8fafc; }
     .hero-card .pin-tag { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px; display: block; }
     .status-pill { display: inline-block; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.82rem; margin-bottom: 14px; letter-spacing: 0.3px; }
     .status-off { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
@@ -59,7 +59,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     /* Action Buttons */
     .btn-group { display: flex; gap: 8px; justify-content: center; }
-    .btn { cursor: pointer; border: none; padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 0.86rem; transition: background 0.15s, transform 0.1s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; }
+    .btn { cursor: pointer; border: none; padding: 10px 12px; border-radius: 8px; font-weight: 600; font-size: 0.84rem; white-space: nowrap; transition: background 0.15s, transform 0.1s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; }
     .btn:active { transform: scale(0.97); }
     .btn-primary { background: var(--primary); color: #fff; }
     .btn-primary:hover { background: var(--primary-hover); }
@@ -74,7 +74,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     .bulk-bar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 
     /* GPIO Grid */
-    .gpio-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .gpio-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px; }
     .gpio-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 12px; box-shadow: var(--shadow-sm); transition: all 0.15s; display: flex; flex-direction: column; justify-content: space-between; }
     .gpio-card.output-on { border-color: var(--green); background: rgba(16, 185, 129, 0.08); }
     .gpio-card.input-mode { border-style: dashed; background: #0e1626; }
@@ -131,7 +131,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="hero-card" id="cardLed">
       <h3>LED Onboard</h3>
       <span class="pin-tag">Pino Físico: <b>GPIO 23</b></span>
-      <div id="pillLed" class="status-pill status-off">DESLIGADO</div>
+      <div id="pillLed" class="status-pill status-off">DESLIGADO (LOW)</div>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="togglePin(23)">Ligar / Desligar</button>
         <button class="btn btn-secondary" onclick="pulsePin(23, 500)">Piscar</button>
